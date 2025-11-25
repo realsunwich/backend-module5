@@ -1,9 +1,9 @@
 package com.example.demo.repository;
 
-import com.example.demo.entity.CommitteeMember;
+import com.example.demo.entity.Meeting;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface CommitteeMemberRepository extends JpaRepository<CommitteeMember, Long> {
+public interface MeetingRepository extends JpaRepository<Meeting, Long> {
 }
