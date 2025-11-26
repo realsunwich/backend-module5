@@ -34,11 +34,17 @@ public class Meeting {
 
     private String status;
 
-    @Column(name = "current_step")
-    private Integer currentStep;
-
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
+
+    @Column(name = "agenda_1_data", columnDefinition = "LONGTEXT")
+    private String agendaOneData;
+
+    @Column(name = "agenda_2_data", columnDefinition = "LONGTEXT")
+    private String agendaTwoData;
+
+    @Column(name = "agenda_3_data", columnDefinition = "LONGTEXT")
+    private String agendaThreeData;
 
     @ManyToMany
     @JoinTable(name = "meeting_attendees", joinColumns = @JoinColumn(name = "meeting_id"), inverseJoinColumns = @JoinColumn(name = "member_id"))

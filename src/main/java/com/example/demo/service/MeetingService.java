@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Service
@@ -24,17 +25,19 @@ public class MeetingService {
     public Meeting createMeeting(MeetingRequest request) {
         Meeting meeting = new Meeting();
 
+        // ... (Set ค่าอื่นๆ เหมือนเดิม) ...
         meeting.setMeetingTypeCode(request.getMeetingTypeCode());
         meeting.setMeetingDate(request.getMeetingDate());
         meeting.setMeetingTime(request.getMeetingTime());
         meeting.setLocation(request.getLocation());
         meeting.setDescription(request.getDescription());
-        meeting.setCurrentStep(request.getCurrentStep());
-
         meeting.setStatus(request.getStatus() != null ? request.getStatus() : "DRAFT");
 
-        // ✅ เรียกใช้ฟังก์ชันสร้างเลขรันใหม่
-        meeting.setMeetingNo(generateMeetingNo());
+        meeting.setAgendaOneData(request.getAgendaOneData());
+        meeting.setAgendaTwoData(request.getAgendaTwoData());
+        meeting.setAgendaThreeData(request.getAgendaThreeData());
+
+        meeting.setMeetingNo(generateMeetingNo(request.getMeetingTypeCode()));
 
         if (request.getMemberIds() != null && !request.getMemberIds().isEmpty()) {
             List<CommitteeMember> attendees = memberRepository.findAllById(request.getMemberIds());
@@ -44,10 +47,14 @@ public class MeetingService {
         return meetingRepository.save(meeting);
     }
 
-    private String generateMeetingNo() {
-        String prefix = "001/68";
+    private String generateMeetingNo(String typeCode) {
+        int thaiYear = LocalDate.now().getYear() + 543;
+        String yearTwoDigits = String.valueOf(thaiYear).substring(2);
 
-        Meeting lastMeeting = meetingRepository.findTopByOrderByIdDesc();
+        String code = (typeCode != null && !typeCode.isEmpty()) ? typeCode : "001";
+        String prefix = code + "/" + yearTwoDigits;
+
+        Meeting lastMeeting = meetingRepository.findTopByMeetingNoStartingWithOrderByIdDesc(prefix);
 
         if (lastMeeting == null || lastMeeting.getMeetingNo() == null) {
             return prefix + "001";
@@ -55,15 +62,40 @@ public class MeetingService {
 
         String lastNo = lastMeeting.getMeetingNo();
 
-        if (lastNo.startsWith(prefix)) {
-            try {
-                String runningNumberStr = lastNo.substring(prefix.length());
-                int nextNumber = Integer.parseInt(runningNumberStr) + 1;
-                return prefix + String.format("%03d", nextNumber);
-            } catch (NumberFormatException e) {
-                return prefix + "001";
-            }
+        try {
+            String runningNumberStr = lastNo.substring(prefix.length());
+            int nextNumber = Integer.parseInt(runningNumberStr) + 1;
+
+            return prefix + String.format("%03d", nextNumber);
+        } catch (NumberFormatException | StringIndexOutOfBoundsException e) {
+            return prefix + "001"; // กันพลาด
         }
-        return prefix + "001";
+    }
+
+    @Transactional
+    public Meeting updateMeeting(Long id, MeetingRequest request) {
+
+        Meeting meeting = meetingRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Meeting not found"));
+
+        meeting.setMeetingTypeCode(request.getMeetingTypeCode());
+        meeting.setMeetingDate(request.getMeetingDate());
+        meeting.setMeetingTime(request.getMeetingTime());
+        meeting.setLocation(request.getLocation());
+        meeting.setDescription(request.getDescription());
+        meeting.setStatus(request.getStatus());
+
+        // อัปเดตวาระ
+        meeting.setAgendaOneData(request.getAgendaOneData());
+        meeting.setAgendaTwoData(request.getAgendaTwoData());
+        meeting.setAgendaThreeData(request.getAgendaThreeData());
+
+        // อัปเดตรายชื่อผู้เข้าร่วม
+        if (request.getMemberIds() != null) {
+            List<CommitteeMember> attendees = memberRepository.findAllById(request.getMemberIds());
+            meeting.setAttendees(attendees);
+        }
+
+        return meetingRepository.save(meeting);
     }
 }

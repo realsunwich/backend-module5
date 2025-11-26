@@ -25,4 +25,17 @@ public class MeetingController {
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }
     }
+
+    @PutMapping("/meetings/{id}")
+    public ResponseEntity<?> updateMeeting(
+            @PathVariable Long id,
+            @RequestBody MeetingRequest request) {
+        try {
+            Meeting updated = meetingService.updateMeeting(id, request);
+            return ResponseEntity.ok(updated);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+        }
+    }
 }

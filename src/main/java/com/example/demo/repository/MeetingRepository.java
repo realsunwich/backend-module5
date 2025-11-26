@@ -6,5 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface MeetingRepository extends JpaRepository<Meeting, Long> {
-    Meeting findTopByOrderByIdDesc();
+    Meeting findTopByMeetingNoStartingWithOrderByIdDesc(String prefix);
 }
