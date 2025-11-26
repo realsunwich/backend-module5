@@ -25,7 +25,6 @@ public class MeetingService {
         Meeting meeting = new Meeting();
 
         meeting.setMeetingTypeCode(request.getMeetingTypeCode());
-
         meeting.setMeetingDate(request.getMeetingDate());
         meeting.setMeetingTime(request.getMeetingTime());
         meeting.setLocation(request.getLocation());
@@ -34,6 +33,7 @@ public class MeetingService {
 
         meeting.setStatus(request.getStatus() != null ? request.getStatus() : "DRAFT");
 
+        // ✅ เรียกใช้ฟังก์ชันสร้างเลขรันใหม่
         meeting.setMeetingNo(generateMeetingNo());
 
         if (request.getMemberIds() != null && !request.getMemberIds().isEmpty()) {
@@ -45,6 +45,25 @@ public class MeetingService {
     }
 
     private String generateMeetingNo() {
-        return "001/68" + (System.currentTimeMillis() % 1000);
+        String prefix = "001/68";
+
+        Meeting lastMeeting = meetingRepository.findTopByOrderByIdDesc();
+
+        if (lastMeeting == null || lastMeeting.getMeetingNo() == null) {
+            return prefix + "001";
+        }
+
+        String lastNo = lastMeeting.getMeetingNo();
+
+        if (lastNo.startsWith(prefix)) {
+            try {
+                String runningNumberStr = lastNo.substring(prefix.length());
+                int nextNumber = Integer.parseInt(runningNumberStr) + 1;
+                return prefix + String.format("%03d", nextNumber);
+            } catch (NumberFormatException e) {
+                return prefix + "001";
+            }
+        }
+        return prefix + "001";
     }
 }
