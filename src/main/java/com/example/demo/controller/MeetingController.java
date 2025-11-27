@@ -15,6 +15,16 @@ public class MeetingController {
     @Autowired
     private MeetingService meetingService;
 
+    @GetMapping("/meetings")
+    public ResponseEntity<?> getAllMeetings() {
+        try {
+            return ResponseEntity.ok(meetingService.getAllMeetings());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+        }
+    }
+
     @PostMapping("/meetings")
     public ResponseEntity<?> createMeeting(@RequestBody MeetingRequest request) {
         try {

@@ -21,11 +21,14 @@ public class MeetingService {
     @Autowired
     private CommitteeMemberRepository memberRepository;
 
+    public List<Meeting> getAllMeetings() {
+        return meetingRepository.findAll();
+    }
+
     @Transactional
     public Meeting createMeeting(MeetingRequest request) {
         Meeting meeting = new Meeting();
 
-        // ... (Set ค่าอื่นๆ เหมือนเดิม) ...
         meeting.setMeetingTypeCode(request.getMeetingTypeCode());
         meeting.setMeetingDate(request.getMeetingDate());
         meeting.setMeetingTime(request.getMeetingTime());
@@ -36,6 +39,8 @@ public class MeetingService {
         meeting.setAgendaOneData(request.getAgendaOneData());
         meeting.setAgendaTwoData(request.getAgendaTwoData());
         meeting.setAgendaThreeData(request.getAgendaThreeData());
+        meeting.setAgendaFourData(request.getAgendaFourData());
+        meeting.setAgendaFiveData(request.getAgendaFiveData());
 
         meeting.setMeetingNo(generateMeetingNo(request.getMeetingTypeCode()));
 
@@ -85,12 +90,12 @@ public class MeetingService {
         meeting.setDescription(request.getDescription());
         meeting.setStatus(request.getStatus());
 
-        // อัปเดตวาระ
         meeting.setAgendaOneData(request.getAgendaOneData());
         meeting.setAgendaTwoData(request.getAgendaTwoData());
         meeting.setAgendaThreeData(request.getAgendaThreeData());
+        meeting.setAgendaFourData(request.getAgendaFourData());
+        meeting.setAgendaFiveData(request.getAgendaFiveData());
 
-        // อัปเดตรายชื่อผู้เข้าร่วม
         if (request.getMemberIds() != null) {
             List<CommitteeMember> attendees = memberRepository.findAllById(request.getMemberIds());
             meeting.setAttendees(attendees);

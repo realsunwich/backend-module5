@@ -46,6 +46,12 @@ public class Meeting {
     @Column(name = "agenda_3_data", columnDefinition = "LONGTEXT")
     private String agendaThreeData;
 
+    @Column(name = "agenda_4_data", columnDefinition = "LONGTEXT")
+    private String agendaFourData;
+
+    @Column(name = "agenda_5_data", columnDefinition = "LONGTEXT")
+    private String agendaFiveData;
+
     @ManyToMany
     @JoinTable(name = "meeting_attendees", joinColumns = @JoinColumn(name = "meeting_id"), inverseJoinColumns = @JoinColumn(name = "member_id"))
     private List<CommitteeMember> attendees;
