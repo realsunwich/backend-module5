@@ -25,6 +25,12 @@ public class MeetingService {
         return meetingRepository.findAll();
     }
 
+    // ใน class MeetingService
+    public Meeting getMeetingById(Long id) {
+        return meetingRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Meeting not found with id: " + id));
+    }
+
     @Transactional
     public Meeting createMeeting(MeetingRequest request) {
         Meeting meeting = new Meeting();

@@ -48,4 +48,14 @@ public class MeetingController {
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }
     }
+
+    @GetMapping("/meetings/{id}")
+    public ResponseEntity<?> getMeetingById(@PathVariable Long id) {
+        try {
+            Meeting meeting = meetingService.getMeetingById(id);
+            return ResponseEntity.ok(meeting);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+        }
+    }
 }
