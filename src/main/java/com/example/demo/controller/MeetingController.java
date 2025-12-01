@@ -54,8 +54,10 @@ public class MeetingController {
         try {
             Meeting meeting = meetingService.getMeetingById(id);
             return ResponseEntity.ok(meeting);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(404).body("ไม่พบข้อมูลการประชุม: " + e.getMessage());
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+            return ResponseEntity.badRequest().body("เกิดข้อผิดพลาด: " + e.getMessage());
         }
     }
 }
