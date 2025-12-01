@@ -102,6 +102,10 @@ public class MeetingService {
         meeting.setAgendaFourData(request.getAgendaFourData());
         meeting.setAgendaFiveData(request.getAgendaFiveData());
 
+        meeting.setResolutionDetail(request.getResolutionDetail());
+        meeting.setResolutionFourData(request.getResolutionFourData());
+        meeting.setResolutionFiveData(request.getResolutionFiveData());
+
         if (request.getMemberIds() != null) {
             List<CommitteeMember> attendees = memberRepository.findAllById(request.getMemberIds());
             meeting.setAttendees(attendees);
@@ -109,6 +113,23 @@ public class MeetingService {
             meeting.setAttendees(new ArrayList<>());
         }
 
+        return meetingRepository.save(meeting);
+    }
+
+    @Transactional
+    public Meeting updateMeetingResolutions(Long id, MeetingRequest request) {
+        Meeting meeting = meetingRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Meeting not found with id: " + id));
+
+        // อัปเดต *เฉพาะ* ข้อมูลผลการประชุม
+        // (ไม่ยุ่งกับ meetingDate, location, agendas ฯลฯ เลย)
+
+        meeting.setResolutionDetail(request.getResolutionDetail());
+        meeting.setResolutionFourData(request.getResolutionFourData());
+        meeting.setResolutionFiveData(request.getResolutionFiveData());
+
+        // บันทึก (Hibernate จะ Generate SQL Update เฉพาะ fields ที่เปลี่ยน หรือ update
+        // ทั้ง row แต่ใช้ค่าเดิมจาก DB ในส่วนที่ไม่ได้แก้)
         return meetingRepository.save(meeting);
     }
 }

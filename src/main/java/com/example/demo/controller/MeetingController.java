@@ -63,4 +63,17 @@ public class MeetingController {
             return ResponseEntity.badRequest().body("เกิดข้อผิดพลาด: " + e.getMessage());
         }
     }
+
+    @PutMapping("/meetings/{id}/resolutions")
+    public ResponseEntity<?> updateMeetingResolutions(
+            @PathVariable Long id,
+            @RequestBody MeetingRequest request) {
+        try {
+            Meeting updated = meetingService.updateMeetingResolutions(id, request);
+            return ResponseEntity.ok(updated);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error updating resolutions: " + e.getMessage());
+        }
+    }
 }

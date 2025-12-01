@@ -56,6 +56,15 @@ public class Meeting {
     @JoinTable(name = "meeting_attendees", joinColumns = @JoinColumn(name = "meeting_id"), inverseJoinColumns = @JoinColumn(name = "member_id"))
     private List<CommitteeMember> attendees;
 
+    @Column(name = "resolution_detail", columnDefinition = "LONGTEXT")
+    private String resolutionDetail;
+
+    @Column(name = "resolution_4_data", columnDefinition = "LONGTEXT")
+    private String resolutionFourData;
+
+    @Column(name = "resolution_5_data", columnDefinition = "LONGTEXT")
+    private String resolutionFiveData;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();

@@ -33,4 +33,8 @@ public class MeetingRequest {
     private String agendaFourData;
     @JsonProperty("agenda_5_data")
     private String agendaFiveData;
+
+    private String resolutionDetail;
+    private String resolutionFourData;
+    private String resolutionFiveData;
 }
