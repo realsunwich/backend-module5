@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -85,9 +86,8 @@ public class MeetingService {
 
     @Transactional
     public Meeting updateMeeting(Long id, MeetingRequest request) {
-
         Meeting meeting = meetingRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Meeting not found"));
+                .orElseThrow(() -> new RuntimeException("Meeting not found with id: " + id));
 
         meeting.setMeetingTypeCode(request.getMeetingTypeCode());
         meeting.setMeetingDate(request.getMeetingDate());
@@ -105,6 +105,8 @@ public class MeetingService {
         if (request.getMemberIds() != null) {
             List<CommitteeMember> attendees = memberRepository.findAllById(request.getMemberIds());
             meeting.setAttendees(attendees);
+        } else {
+            meeting.setAttendees(new ArrayList<>());
         }
 
         return meetingRepository.save(meeting);

@@ -4,6 +4,7 @@ import com.example.demo.dto.MeetingRequest;
 import com.example.demo.entity.Meeting;
 import com.example.demo.service.MeetingService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -41,11 +42,13 @@ public class MeetingController {
             @PathVariable Long id,
             @RequestBody MeetingRequest request) {
         try {
-            Meeting updated = meetingService.updateMeeting(id, request);
-            return ResponseEntity.ok(updated);
+            Meeting updatedMeeting = meetingService.updateMeeting(id, request);
+            return ResponseEntity.ok(updatedMeeting);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Error: " + e.getMessage());
         } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error updating meeting: " + e.getMessage());
         }
     }
 
