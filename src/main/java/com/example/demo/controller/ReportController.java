@@ -53,7 +53,7 @@ public class ReportController {
 
             // HEADER
             String title = data.getMeetingTitle();
-            addCenterTitle(document, title, fontBold, 16);
+            addCenterTitle(document, title, fontBold, 14);
             addCenterTitle(document,
                     "ครั้งที่ " + (data.getMeetingNo() != null ? data.getMeetingNo() : "-"),
                     fontBold, 14);
