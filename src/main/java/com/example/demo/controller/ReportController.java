@@ -213,22 +213,27 @@ public class ReportController {
 
     private void addAgendaSectionStyled(Document doc, String title, String content,
             PdfFont headerFont, PdfFont bodyFont) {
+
         Paragraph header = new Paragraph(title)
                 .setFont(headerFont)
                 .setFontSize(11)
-                .setFixedLeading(13)
                 .setMarginTop(6)
                 .setMarginBottom(3);
         doc.add(header);
 
-        Paragraph body = new Paragraph(content)
-                .setFont(bodyFont)
-                .setFontSize(11)
-                .setFixedLeading(13)
-                .setTextAlignment(TextAlignment.JUSTIFIED)
-                .setMarginLeft(15)
-                .setMarginBottom(6);
-        doc.add(body);
+        String[] lines = content.split("\n");
+
+        for (String line : lines) {
+            Paragraph body = new Paragraph(line)
+                    .setFont(bodyFont)
+                    .setFontSize(11)
+                    .setFixedLeading(13)
+                    .setTextAlignment(TextAlignment.JUSTIFIED)
+                    .setMarginLeft(15)
+                    .setMarginBottom(3);
+
+            doc.add(body);
+        }
     }
 
     private void addAgendaTable(Document doc, String agendaTitle, String json,
@@ -331,6 +336,7 @@ public class ReportController {
         try {
             ObjectMapper mapper = new ObjectMapper();
             JsonNode root = mapper.readTree(jsonString);
+
             if (!root.has("subAgendas"))
                 return jsonString;
 
@@ -340,9 +346,12 @@ public class ReportController {
 
             StringBuilder sb = new StringBuilder();
             for (JsonNode item : sub) {
-                String no = item.path("subAgendaNo").asText("");
+                String no = item.path("subAgendaNo").asText(""); // <== ใช้นี่
                 String detail = item.path("detail").asText("");
-                sb.append(no).append(". ").append(detail);
+
+                sb.append("วาระย่อยที่ ").append(no)
+                        .append(" ").append(detail)
+                        .append("\n");
             }
             return sb.toString().trim();
 
