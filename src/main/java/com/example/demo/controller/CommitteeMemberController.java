@@ -32,4 +32,9 @@ public class CommitteeMemberController {
     public CommitteeMember addMember(@RequestBody CommitteeMember member) {
         return service.createMember(member);
     }
+
+    @PutMapping("/{id}")
+    public CommitteeMember updateMember(@PathVariable Long id, @RequestBody CommitteeMember updatedMember) {
+        return service.updateMember(id, updatedMember);
+    }
 }

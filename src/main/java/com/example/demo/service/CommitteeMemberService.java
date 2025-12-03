@@ -26,4 +26,24 @@ public class CommitteeMemberService {
     public CommitteeMember createMember(CommitteeMember member) {
         return repository.save(member);
     }
+
+    // ✅ 4. อัปเดตข้อมูลตาม ID
+    public CommitteeMember updateMember(Long id, CommitteeMember updated) {
+        return repository.findById(id).map(existing -> {
+
+            existing.setCitizenId(updated.getCitizenId());
+            existing.setPrename(updated.getPrename());
+            existing.setFirstname(updated.getFirstname());
+            existing.setLastname(updated.getLastname());
+            existing.setAffiliation(updated.getAffiliation());
+            existing.setDepartment(updated.getDepartment());
+            existing.setPhone(updated.getPhone());
+            existing.setEmail(updated.getEmail());
+
+            // updated_at จะอัปเดตเอง เพราะใช้:
+            // DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+
+            return repository.save(existing);
+        }).orElse(null);
+    }
 }
