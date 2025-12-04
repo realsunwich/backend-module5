@@ -22,6 +22,9 @@ public class CommitteeMember {
     @Column(name = "firstname", nullable = false)
     private String firstname;
 
+    @Column(name = "middlename")
+    private String middlename;
+
     @Column(name = "lastname", nullable = false)
     private String lastname;
 
