@@ -120,16 +120,14 @@ public class MeetingService {
     public Meeting updateMeetingResolutions(Long id, MeetingRequest request) {
         Meeting meeting = meetingRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Meeting not found with id: " + id));
-
-        // อัปเดต *เฉพาะ* ข้อมูลผลการประชุม
-        // (ไม่ยุ่งกับ meetingDate, location, agendas ฯลฯ เลย)
-
         meeting.setResolutionDetail(request.getResolutionDetail());
         meeting.setResolutionFourData(request.getResolutionFourData());
         meeting.setResolutionFiveData(request.getResolutionFiveData());
 
-        // บันทึก (Hibernate จะ Generate SQL Update เฉพาะ fields ที่เปลี่ยน หรือ update
-        // ทั้ง row แต่ใช้ค่าเดิมจาก DB ในส่วนที่ไม่ได้แก้)
+        if (request.getStatus() != null && !request.getStatus().isEmpty()) {
+            meeting.setStatus(request.getStatus());
+        }
+
         return meetingRepository.save(meeting);
     }
 }
