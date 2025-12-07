@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <style>
+        @font-face {
+            font-family: 'Sarabun';
+            src: url(file:src/main/resources/fonts/Sarabun-Regular.ttf);
+            -fs-pdf-font-embed: embed;
+            -fs-pdf-font-encoding: Identity-H;
+        }
+
+        @font-face {
+            font-family: 'Sarabun';
+            src: url(file:src/main/resources/fonts/Sarabun-Bold.ttf);
+            font-weight: bold;
+            -fs-pdf-font-embed: embed;
+            -fs-pdf-font-encoding: Identity-H;
+        }
+
+        body {
+            font-family: 'Sarabun', sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .header {
+            text-align: center;
+            font-weight: bold;
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-weight: bold;
+            margin-top: 15px;
+            font-size: 16px;
+        }
+
+        .content {
+            margin-left: 15px;
+            margin-top: 5px;
+            text-align: justify;
+        }
+
+        .sub-header {
+            font-weight: bold;
+            margin-top: 10px;
+            margin-bottom: 5px;
+            text-decoration: underline;
+        }
+
+        .list-item {
+            margin-bottom: 4px;
+            padding-left: 10px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <div th:text="${meetingTitle}">รายงานการประชุม</div>
+        <div th:text="'ครั้งที่ ' + ${meetingNo}">ครั้งที่...</div>
+        <div style="font-size: 14px; font-weight: normal;"
+            th:text="'เมื่อวันที่ ' + ${formattedDate} + ' เวลา ' + ${meetingTime} + ' น. ณ ' + ${location}">
+        </div>
+    </div>
+
+    <div class="section-title">ผู้มาประชุม</div>
+    <div class="content">
+        <div th:if="${#lists.isEmpty(attendees)}">- ไม่มีข้อมูล -</div>
+        <div th:each="attendee, iter : ${attendees}">
+            <span
+                th:text="${iter.count} + '. ' + ${attendee.prename} + ${attendee.firstname} + ' ' + ${attendee.lastname}"></span>
+            <span th:if="${attendee.department != null}" th:text="' (' + ${attendee.department} + ')'"></span>
+        </div>
+    </div>
+
+    <div class="section-title">ระเบียบวาระที่ ๑</div>
+    <div class="content" th:utext="${agendaOne}"></div>
+
+    <div class="section-title">ระเบียบวาระที่ ๒</div>
+    <div class="content" th:utext="${agendaTwo}"></div>
+
+    <div class="section-title">ระเบียบวาระที่ ๓</div>
+    <div class="content" th:utext="${agendaThree}"></div>
+
+    <div class="section-title">ระเบียบวาระที่ ๔</div>
+    <div class="content">
+
+        <div class="sub-header">รายชื่อผู้เกี่ยวข้อง</div>
+        <div th:if="${#lists.isEmpty(agendaFourItems)}">- ไม่มีรายชื่อ -</div>
+
+        <div th:each="item : ${agendaFourItems}" class="list-item">
+            <span th:text="${item.order} + '. ' + ${item.name}"></span>
+            <span th:if="${item.region != '-'}" th:text="' (' + ${item.region} + ')'"></span>
+        </div>
+
+        <div class="sub-header">รายการทรัพย์สิน</div>
+        <div th:if="${#lists.isEmpty(agendaFourAssets)}">- ไม่มีรายการทรัพย์สิน -</div>
+
+        <div th:each="asset : ${agendaFourAssets}" class="list-item">
+            <span th:text="${asset.no} + '. ' + ${asset.asset}"></span>
+
+            <span th:if="${asset.fileNo != '-' && asset.fileNo != null && asset.fileNo != ''}"
+                th:text="' (' + ${asset.fileNo} + ')'"></span>
+
+            <span th:text="' มูลค่า ' + ${asset.amount} + ' บาท'"></span>
+            <span th:if="${asset.status != ''}" th:text="' [' + ${asset.status} + ']'"></span>
+        </div>
+    </div>
+
+    <div class="section-title">ระเบียบวาระที่ ๕</div>
+    <div class="content">
+
+        <div class="sub-header">รายชื่อผู้เกี่ยวข้อง</div>
+        <div th:if="${#lists.isEmpty(agendaFiveItems)}">- ไม่มีรายชื่อ -</div>
+
+        <div th:each="item : ${agendaFiveItems}" class="list-item">
+            <span th:text="${item.order} + '. ' + ${item.name}"></span>
+            <span th:if="${item.region != '-'}" th:text="' (' + ${item.region} + ')'"></span>
+        </div>
+
+        <div class="sub-header">รายการทรัพย์สิน</div>
+        <div th:if="${#lists.isEmpty(agendaFiveAssets)}">- ไม่มีรายการทรัพย์สิน -</div>
+
+        <div th:each="asset : ${agendaFourAssets}" class="list-item">
+            <span th:text="${asset.no} + '. ' + ${asset.asset}"></span>
+
+            <span th:if="${asset.fileNo != '-' && asset.fileNo != null && asset.fileNo != ''}"
+                th:text="' (' + ${asset.fileNo} + ')'"></span>
+
+            <span th:text="' มูลค่า ' + ${asset.amount} + ' บาท'"></span>
+            <span th:if="${asset.status != ''}" th:text="' [' + ${asset.status} + ']'"></span>
+        </div>
+    </div>
+
+    <div th:if="${hasResolution}">
+        <div class="section-title">มติที่ประชุม</div>
+        <div th:if="${resDetail != null}">
+            <strong>มติทั่วไป</strong>
+            <div th:utext="${resDetail}"></div>
+        </div>
+        <div th:if="${resFour != null}" style="margin-top: 10px;">
+            <strong>มติวาระที่ 4</strong>
+            <div th:utext="${resFour}"></div>
+        </div>
+        <div th:if="${resFive != null}" style="margin-top: 10px;">
+            <strong>มติวาระที่ 5</strong>
+            <div th:utext="${resFive}"></div>
+        </div>
+    </div>
+
+</body>
+
+</html>

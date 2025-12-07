@@ -3,149 +3,93 @@ package com.example.demo.controller;
 import com.example.demo.dto.MeetingRequest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
-import com.itextpdf.io.font.PdfEncodings;
-import com.itextpdf.io.source.ByteArrayOutputStream;
-import com.itextpdf.kernel.colors.ColorConstants;
-import com.itextpdf.kernel.font.PdfFont;
-import com.itextpdf.kernel.font.PdfFontFactory;
-import com.itextpdf.kernel.font.PdfFontFactory.EmbeddingStrategy;
-import com.itextpdf.kernel.geom.PageSize;
-import com.itextpdf.kernel.pdf.PdfDocument;
-import com.itextpdf.kernel.pdf.PdfWriter;
-import com.itextpdf.layout.Document;
-import com.itextpdf.layout.element.Cell;
-import com.itextpdf.layout.element.Paragraph;
-import com.itextpdf.layout.element.Table;
-import com.itextpdf.layout.properties.TextAlignment;
-import com.itextpdf.layout.properties.UnitValue;
-
-import org.springframework.core.io.ClassPathResource;
+import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.thymeleaf.TemplateEngine;
+import org.thymeleaf.context.Context;
 
+import java.io.ByteArrayOutputStream;
+import java.text.DecimalFormat;
 import java.time.format.DateTimeFormatter;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api/reports")
 @CrossOrigin(origins = "*")
 public class ReportController {
 
-    private PdfFont fontRegular;
-    private PdfFont fontBold;
+    @Autowired
+    private TemplateEngine templateEngine;
 
     @PostMapping("/generate-ebook")
     public ResponseEntity<?> generateEbook(@RequestBody MeetingRequest data) {
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+        try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
 
-            // สร้าง PdfWriter + PdfDocument + Document
-            PdfWriter writer = new PdfWriter(baos);
-            PdfDocument pdfDoc = new PdfDocument(writer);
+            Context context = new Context();
 
-            Document document = new Document(pdfDoc, PageSize.A4);
-            document.setMargins(60, 55, 60, 55);
-
-            initFonts();
-
-            // HEADER
-            String title = data.getMeetingTitle();
-            addCenterTitle(document, title, fontBold, 14);
-            addCenterTitle(document,
-                    "ครั้งที่ " + (data.getMeetingNo() != null ? data.getMeetingNo() : "-"),
-                    fontBold, 14);
+            // --- Header Info ---
+            context.setVariable("meetingTitle", data.getMeetingTitle());
+            context.setVariable("meetingNo", data.getMeetingNo() != null ? data.getMeetingNo() : "-");
+            context.setVariable("location", data.getLocation());
+            context.setVariable("meetingTime",
+                    data.getMeetingTime() != null ? data.getMeetingTime().toString().substring(0, 5) : "-");
 
             String dateStr = "-";
             if (data.getMeetingDate() != null) {
-                Locale localeTH = new Locale.Builder()
-                        .setLanguage("th")
-                        .setRegion("TH")
-                        .build();
-
+                Locale localeTH = new Locale.Builder().setLanguage("th").setRegion("TH").build();
                 DateTimeFormatter formatter = DateTimeFormatter.ofPattern("d MMMM yyyy", localeTH);
-
                 dateStr = data.getMeetingDate().format(formatter);
             }
+            context.setVariable("formattedDate", dateStr);
+            context.setVariable("attendees", data.getAttendees());
 
-            String dateTimeLocationText = "เมื่อวันที่ " + dateStr +
-                    " เวลา " + (data.getMeetingTime() != null
-                            ? data.getMeetingTime().toString().substring(0, 5) + " น."
-                            : "-")
-                    +
-                    " ณ " + (data.getLocation() != null ? data.getLocation() : "-");
+            // --- Agendas 1-3 (HTML Content) ---
+            context.setVariable("agendaOne", parseGenericText(data.getAgendaOneData()));
+            context.setVariable("agendaTwo", parseGenericText(data.getAgendaTwoData()));
+            context.setVariable("agendaThree", parseGenericText(data.getAgendaThreeData()));
 
-            addCenterParagraph(document, dateTimeLocationText, fontRegular);
+            // --- Agenda 4 ---
+            // รายชื่อ (Items)
+            context.setVariable("agendaFourItems", parseItems(data.getAgendaFourData()));
+            // ทรัพย์สิน (DialogData)
+            context.setVariable("agendaFourAssets", parseAssets(data.getAgendaFourData()));
 
-            // ผู้มาประชุม
-            addSectionHeader(document, "ผู้มาประชุม", fontBold);
+            // --- Agenda 5 ---
+            context.setVariable("agendaFiveItems", parseItems(data.getAgendaFiveData()));
+            context.setVariable("agendaFiveAssets", parseAssets(data.getAgendaFiveData()));
 
-            if (data.getAttendees() != null && !data.getAttendees().isEmpty()) {
-                int i = 1;
-                for (Map<String, Object> attendee : data.getAttendees()) {
-                    String prename = (String) attendee.getOrDefault("prename", "");
-                    String firstname = (String) attendee.getOrDefault("firstname", "");
-                    String lastname = (String) attendee.getOrDefault("lastname", "");
-                    String position = (String) attendee.getOrDefault("department", "");
-                    if (position.isEmpty()) {
-                        position = (String) attendee.getOrDefault("affiliation", "");
-                    }
+            // --- Resolutions (HTML Content) ---
+            boolean hasResolution = (data.getResolutionDetail() != null && !data.getResolutionDetail().isEmpty()) ||
+                    (data.getResolutionFourData() != null && !data.getResolutionFourData().isEmpty()) ||
+                    (data.getResolutionFiveData() != null && !data.getResolutionFiveData().isEmpty());
 
-                    String fullName = i++ + ". " + prename + firstname + " " + lastname;
-                    if (!position.isEmpty())
-                        fullName += " (" + position + ")";
+            context.setVariable("hasResolution", hasResolution);
 
-                    addIndentedParagraph(document, fullName, fontRegular);
-                }
-            } else {
-                addIndentedParagraph(document, "-", fontRegular);
-            }
+            // ใช้ parseResolutionText เพราะบางทีมาเป็น JSON Object บางทีมาเป็น String
+            // เพียวๆ
+            context.setVariable("resDetail", parseResolutionText(data.getResolutionDetail()));
+            context.setVariable("resFour", parseResolutionText(data.getResolutionFourData()));
+            context.setVariable("resFive", parseResolutionText(data.getResolutionFiveData()));
 
-            // วาระต่าง ๆ
-            addAgendaSectionStyled(document, "ระเบียบวาระที่ ๑",
-                    extractTextFromJson(data.getAgendaOneData()), fontBold, fontRegular);
+            // --- Process PDF ---
+            String htmlContent = templateEngine.process("meeting_report", context);
 
-            addAgendaSectionStyled(document, "ระเบียบวาระที่ ๒",
-                    extractTextFromJson(data.getAgendaTwoData()), fontBold, fontRegular);
-
-            addAgendaSectionStyled(document, "ระเบียบวาระที่ ๓",
-                    extractTextFromJson(data.getAgendaThreeData()), fontBold, fontRegular);
-
-            addAgendaTable(document, "ระเบียบวาระที่ ๔",
-                    data.getAgendaFourData(), fontBold, fontRegular);
-
-            addAgendaTable(document, "ระเบียบวาระที่ ๕",
-                    data.getAgendaFiveData(), fontBold, fontRegular);
-
-            // มติที่ประชุม
-            if (data.getResolutionDetail() != null
-                    || data.getResolutionFourData() != null
-                    || data.getResolutionFiveData() != null) {
-                addSectionHeader(document, "มติที่ประชุม", fontBold);
-
-                if (data.getResolutionDetail() != null) {
-                    String resDetail = parseResolutionText(data.getResolutionDetail());
-                    addIndentedParagraph(document, resDetail, fontRegular);
-                }
-
-                if (data.getResolutionFourData() != null)
-                    addIndentedParagraph(document, "วาระที่ 4 " + data.getResolutionFourData(), fontRegular);
-
-                if (data.getResolutionFiveData() != null)
-                    addIndentedParagraph(document, "วาระที่ 5 " + data.getResolutionFiveData(), fontRegular);
-            }
-
-            document.close();
+            PdfRendererBuilder builder = new PdfRendererBuilder();
+            builder.useFastMode();
+            String baseUrl = new java.io.File("src/main/resources/").toURI().toString();
+            builder.withHtmlContent(htmlContent, baseUrl);
+            builder.toStream(os);
+            builder.run();
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_PDF);
             headers.setContentDispositionFormData("inline", "meeting-report.pdf");
 
-            return ResponseEntity.ok()
-                    .headers(headers)
-                    .body(baos.toByteArray());
+            return ResponseEntity.ok().headers(headers).body(os.toByteArray());
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -153,235 +97,114 @@ public class ReportController {
         }
     }
 
-    private void initFonts() throws Exception {
-        ClassPathResource regularRes = new ClassPathResource("fonts/Sarabun-Regular.ttf");
-        ClassPathResource boldRes = new ClassPathResource("fonts/Sarabun-Bold.ttf");
-
-        // โหลดฟอนต์แบบ embed เต็มรูปแบบเพื่อรองรับสระและวรรณยุกต์ภาษาไทย
-        // ใช้ IDENTITY_H encoding และ PREFER_EMBEDDED เพื่อรองรับ OpenType features
-        fontRegular = PdfFontFactory.createFont(
-                regularRes.getInputStream().readAllBytes(),
-                PdfEncodings.IDENTITY_H,
-                EmbeddingStrategy.PREFER_EMBEDDED);
-
-        fontBold = PdfFontFactory.createFont(
-                boldRes.getInputStream().readAllBytes(),
-                PdfEncodings.IDENTITY_H,
-                EmbeddingStrategy.PREFER_EMBEDDED);
-    }
-
-    private void addCenterTitle(Document doc, String text, PdfFont font, int fontSize) {
-        Paragraph p = new Paragraph(text)
-                .setFont(font)
-                .setFontSize(fontSize)
-                .setFixedLeading(fontSize + 2)
-                .setTextAlignment(TextAlignment.CENTER)
-                .setMarginTop(2)
-                .setMarginBottom(2);
-        doc.add(p);
-    }
-
-    private void addCenterParagraph(Document doc, String text, PdfFont font) {
-        Paragraph p = new Paragraph(text)
-                .setFont(font)
-                .setFontSize(11)
-                .setFixedLeading(13)
-                .setTextAlignment(TextAlignment.CENTER)
-                .setMarginBottom(2);
-        doc.add(p);
-    }
-
-    private void addIndentedParagraph(Document doc, String text, PdfFont font) {
-        Paragraph p = new Paragraph(text)
-                .setFont(font)
-                .setFontSize(11)
-                .setFixedLeading(13)
-                .setTextAlignment(TextAlignment.JUSTIFIED)
-                .setMarginBottom(2)
-                .setMarginLeft(15);
-        doc.add(p);
-    }
-
-    private void addSectionHeader(Document doc, String text, PdfFont font) {
-        Paragraph p = new Paragraph(text)
-                .setFont(font)
-                .setFontSize(11)
-                .setMarginTop(10)
-                .setMarginBottom(5);
-        doc.add(p);
-    }
-
-    private void addAgendaSectionStyled(Document doc, String title, String content,
-            PdfFont headerFont, PdfFont bodyFont) {
-
-        Paragraph header = new Paragraph(title)
-                .setFont(headerFont)
-                .setFontSize(11)
-                .setMarginTop(6)
-                .setMarginBottom(3);
-        doc.add(header);
-
-        String[] lines = content.split("\n");
-
-        for (String line : lines) {
-            Paragraph body = new Paragraph(line)
-                    .setFont(bodyFont)
-                    .setFontSize(11)
-                    .setFixedLeading(13)
-                    .setTextAlignment(TextAlignment.JUSTIFIED)
-                    .setMarginLeft(15)
-                    .setMarginBottom(3);
-
-            doc.add(body);
-        }
-    }
-
-    private void addAgendaTable(Document doc, String agendaTitle, String json,
-            PdfFont headerFont, PdfFont bodyFont) {
-        Paragraph header = new Paragraph(agendaTitle)
-                .setFont(headerFont)
-                .setFontSize(11)
-
-                .setMarginTop(10)
-                .setMarginBottom(5);
-        doc.add(header);
-
-        if (json == null || json.isEmpty() || json.equals("{}")) {
-            addIndentedParagraph(doc, "-ไม่มีรายละเอียด-", bodyFont);
-            return;
-        }
-
+    // แปลง items (คน/หน่วยงาน)
+    private List<Map<String, String>> parseItems(String json) {
+        List<Map<String, String>> result = new ArrayList<>();
+        if (json == null || json.isEmpty())
+            return result;
         try {
             ObjectMapper mapper = new ObjectMapper();
             JsonNode root = mapper.readTree(json);
-
-            if (root.has("items")) {
-                JsonNode items = root.get("items");
-
-                if (items.isArray() && items.size() > 0) {
-                    for (JsonNode item : items) {
-                        String order = item.path("order").asText("-");
-                        String name = item.path("name").asText("-");
-                        String region = item.path("region").asText("");
-
-                        String line = order + " " + name;
-                        if (!region.isEmpty()) {
-                            line += " (" + region + ")";
-                        }
-
-                        addIndentedParagraph(doc, line, bodyFont);
-                    }
+            if (root.has("items") && root.get("items").isArray()) {
+                for (JsonNode item : root.get("items")) {
+                    Map<String, String> map = new HashMap<>();
+                    map.put("order", item.path("order").asText("-"));
+                    map.put("name", item.path("name").asText("-"));
+                    map.put("region", item.path("region").asText("-"));
+                    result.add(map);
                 }
             }
-
-            if (!root.has("dialogData")) {
-                addIndentedParagraph(doc, extractTextFromJson(json), bodyFont);
-                return;
-            }
-
-            JsonNode dialogData = root.get("dialogData");
-
-            if (!dialogData.isArray() || dialogData.size() == 0) {
-                addIndentedParagraph(doc, "-ไม่มีรายการทรัพย์สิน-", bodyFont);
-                return;
-            }
-
-            Table table = new Table(new float[] { 1, 3, 5, 3, 3 });
-            table.setWidth(UnitValue.createPercentValue(100));
-            table.setMarginTop(5);
-
-            addTableHeader(table, "ลำดับ", headerFont);
-            addTableHeader(table, "เลขที่เอกสาร", headerFont);
-            addTableHeader(table, "รายการทรัพย์สิน", headerFont);
-            addTableHeader(table, "มูลค่า (บาท)", headerFont);
-            addTableHeader(table, "สถานะ", headerFont);
-
-            int i = 1;
-            for (JsonNode item : dialogData) {
-                addTableCell(table, String.valueOf(i++), bodyFont);
-                addTableCell(table, item.path("fileNo").asText("-"), bodyFont);
-                addTableCell(table, item.path("asset").asText("-"), bodyFont);
-                addTableCell(table, item.path("amount").asText("-"), bodyFont);
-                addTableCell(table, mapStatus(item.path("status").asText("-")), bodyFont);
-            }
-
-            doc.add(table);
-
         } catch (Exception e) {
-            addIndentedParagraph(doc, "(Error parsing agenda)", bodyFont);
         }
+        return result;
     }
 
-    private void addTableHeader(Table table, String text, PdfFont font) {
-        Cell cell = new Cell().add(
-                new Paragraph(text).setFont(font).setFontSize(11));
-        cell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
-        cell.setTextAlignment(TextAlignment.CENTER);
-        cell.setPadding(6);
-        table.addHeaderCell(cell);
-    }
-
-    private void addTableCell(Table table, String text, PdfFont font) {
-        Cell cell = new Cell().add(
-                new Paragraph(text).setFont(font).setFontSize(10));
-        cell.setPadding(5);
-        cell.setTextAlignment(TextAlignment.LEFT);
-        table.addCell(cell);
-    }
-
-    private String extractTextFromJson(String jsonString) {
-        if (jsonString == null || jsonString.isEmpty() || jsonString.equals("{}")) {
-            return "-ไม่มีรายละเอียด-";
-        }
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            JsonNode root = mapper.readTree(jsonString);
-
-            if (!root.has("subAgendas"))
-                return jsonString;
-
-            JsonNode sub = root.get("subAgendas");
-            if (!sub.isArray() || sub.size() == 0)
-                return "-ไม่มีรายละเอียด-";
-
-            StringBuilder sb = new StringBuilder();
-            for (JsonNode item : sub) {
-                String no = item.path("subAgendaNo").asText(""); // <== ใช้นี่
-                String detail = item.path("detail").asText("");
-
-                sb.append("วาระย่อยที่ ").append(no)
-                        .append(" ").append(detail)
-                        .append("\n");
-            }
-            return sb.toString().trim();
-
-        } catch (Exception e) {
-            return jsonString;
-        }
-    }
-
-    private String parseResolutionText(String json) {
+    // แปลง dialogData (ทรัพย์สิน)
+    private List<Map<String, String>> parseAssets(String json) {
+        List<Map<String, String>> result = new ArrayList<>();
+        if (json == null || json.isEmpty())
+            return result;
         try {
             ObjectMapper mapper = new ObjectMapper();
             JsonNode root = mapper.readTree(json);
-            return root.has("detail")
-                    ? root.get("detail").asText()
-                    : json;
+            if (root.has("dialogData") && root.get("dialogData").isArray()) {
+                int index = 1;
+                DecimalFormat df = new DecimalFormat("#,##0.00");
+                for (JsonNode item : root.get("dialogData")) {
+                    Map<String, String> map = new HashMap<>();
+                    map.put("no", String.valueOf(index++));
+                    map.put("fileNo", item.path("fileNo").asText("-"));
+                    map.put("asset", item.path("asset").asText("-"));
+
+                    // Format Amount
+                    String amountStr = item.path("amount").asText("0");
+                    try {
+                        double amount = Double.parseDouble(amountStr.replace(",", ""));
+                        map.put("amount", df.format(amount));
+                    } catch (Exception ex) {
+                        map.put("amount", amountStr);
+                    }
+
+                    // Map Status
+                    String status = item.path("status").asText("");
+                    map.put("status", mapStatus(status));
+
+                    result.add(map);
+                }
+            }
         } catch (Exception e) {
-            return json;
         }
+        return result;
     }
 
     private String mapStatus(String status) {
         switch (status) {
             case "seize":
                 return "ยึดทรัพย์";
-            case "pending":
-                return "รอตรวจสอบ";
             case "reject":
                 return "ยกคำร้อง";
+            case "pending":
+                return "รอตรวจสอบ";
             default:
                 return status;
         }
+    }
+
+    // แปลง JSON หรือ String HTML ให้พร้อมแสดงผล
+    private String parseGenericText(String json) {
+        if (json == null || json.isEmpty() || json.equals("{}"))
+            return "-ไม่มีรายละเอียด-";
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(json);
+            if (root.has("subAgendas") && root.get("subAgendas").isArray()) {
+                StringBuilder sb = new StringBuilder();
+                for (JsonNode sub : root.get("subAgendas")) {
+                    String detail = sub.path("detail").asText("");
+                    sb.append(" ").append(detail);
+                }
+                String res = sb.toString();
+                return res.isEmpty() ? "-ไม่มีรายละเอียด-" : res;
+            }
+            return json;
+        } catch (Exception e) {
+            return json;
+        }
+    }
+
+    // ดึง text HTML จาก Resolution (ซึ่งอาจเป็น JSON object หรือ String)
+    private String parseResolutionText(String json) {
+        if (json == null || json.isEmpty())
+            return null;
+        if (json.trim().startsWith("{")) {
+            try {
+                ObjectMapper mapper = new ObjectMapper();
+                JsonNode root = mapper.readTree(json);
+                if (root.has("detail"))
+                    return root.get("detail").asText();
+            } catch (Exception e) {
+            }
+        }
+        return json;
     }
 }
