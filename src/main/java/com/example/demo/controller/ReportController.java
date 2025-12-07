@@ -3,7 +3,12 @@ package com.example.demo.controller;
 import com.example.demo.dto.MeetingRequest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+// Import สำหรับจัดระเบียบภาษาไทย (Text Shaping)
+import com.openhtmltopdf.bidi.support.ICUBidiReorderer;
+import com.openhtmltopdf.bidi.support.ICUBidiSplitter;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
+import com.openhtmltopdf.outputdevice.helper.BaseRendererBuilder;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -53,24 +58,19 @@ public class ReportController {
             context.setVariable("agendaThree", parseGenericText(data.getAgendaThreeData()));
 
             // --- Agenda 4 ---
-            // รายชื่อ (Items)
             context.setVariable("agendaFourItems", parseItems(data.getAgendaFourData()));
-            // ทรัพย์สิน (DialogData)
             context.setVariable("agendaFourAssets", parseAssets(data.getAgendaFourData()));
 
             // --- Agenda 5 ---
             context.setVariable("agendaFiveItems", parseItems(data.getAgendaFiveData()));
             context.setVariable("agendaFiveAssets", parseAssets(data.getAgendaFiveData()));
 
-            // --- Resolutions (HTML Content) ---
+            // --- Resolutions ---
             boolean hasResolution = (data.getResolutionDetail() != null && !data.getResolutionDetail().isEmpty()) ||
                     (data.getResolutionFourData() != null && !data.getResolutionFourData().isEmpty()) ||
                     (data.getResolutionFiveData() != null && !data.getResolutionFiveData().isEmpty());
 
             context.setVariable("hasResolution", hasResolution);
-
-            // ใช้ parseResolutionText เพราะบางทีมาเป็น JSON Object บางทีมาเป็น String
-            // เพียวๆ
             context.setVariable("resDetail", parseResolutionText(data.getResolutionDetail()));
             context.setVariable("resFour", parseResolutionText(data.getResolutionFourData()));
             context.setVariable("resFive", parseResolutionText(data.getResolutionFiveData()));
@@ -79,7 +79,14 @@ public class ReportController {
             String htmlContent = templateEngine.process("meeting_report", context);
 
             PdfRendererBuilder builder = new PdfRendererBuilder();
-            builder.useFastMode();
+
+            // ใช้ Text Shaping สำหรับภาษาไทย
+            builder.useUnicodeBidiSplitter(new ICUBidiSplitter.ICUBidiSplitterFactory());
+            builder.useUnicodeBidiReorderer(new ICUBidiReorderer());
+
+            // กำหนดทิศทาง Default
+            builder.defaultTextDirection(BaseRendererBuilder.TextDirection.LTR);
+
             String baseUrl = new java.io.File("src/main/resources/").toURI().toString();
             builder.withHtmlContent(htmlContent, baseUrl);
             builder.toStream(os);
@@ -97,7 +104,6 @@ public class ReportController {
         }
     }
 
-    // แปลง items (คน/หน่วยงาน)
     private List<Map<String, String>> parseItems(String json) {
         List<Map<String, String>> result = new ArrayList<>();
         if (json == null || json.isEmpty())
@@ -119,7 +125,6 @@ public class ReportController {
         return result;
     }
 
-    // แปลง dialogData (ทรัพย์สิน)
     private List<Map<String, String>> parseAssets(String json) {
         List<Map<String, String>> result = new ArrayList<>();
         if (json == null || json.isEmpty())
@@ -136,7 +141,6 @@ public class ReportController {
                     map.put("fileNo", item.path("fileNo").asText("-"));
                     map.put("asset", item.path("asset").asText("-"));
 
-                    // Format Amount
                     String amountStr = item.path("amount").asText("0");
                     try {
                         double amount = Double.parseDouble(amountStr.replace(",", ""));
@@ -145,7 +149,6 @@ public class ReportController {
                         map.put("amount", amountStr);
                     }
 
-                    // Map Status
                     String status = item.path("status").asText("");
                     map.put("status", mapStatus(status));
 
@@ -170,7 +173,7 @@ public class ReportController {
         }
     }
 
-    // แปลง JSON หรือ String HTML ให้พร้อมแสดงผล
+    // --- จุดที่ปรับปรุง: ใส่ div class='agenda-item' ครอบรายการย่อย ---
     private String parseGenericText(String json) {
         if (json == null || json.isEmpty() || json.equals("{}"))
             return "-ไม่มีรายละเอียด-";
@@ -181,7 +184,9 @@ public class ReportController {
                 StringBuilder sb = new StringBuilder();
                 for (JsonNode sub : root.get("subAgendas")) {
                     String detail = sub.path("detail").asText("");
-                    sb.append(" ").append(detail);
+
+                    // ใช้ div เพื่อให้ CSS .agenda-item ทำงานได้ (ควบคุมระยะห่างบรรทัด)
+                    sb.append("<div class='agenda-item'>").append(detail).append("</div>");
                 }
                 String res = sb.toString();
                 return res.isEmpty() ? "-ไม่มีรายละเอียด-" : res;
@@ -192,7 +197,6 @@ public class ReportController {
         }
     }
 
-    // ดึง text HTML จาก Resolution (ซึ่งอาจเป็น JSON object หรือ String)
     private String parseResolutionText(String json) {
         if (json == null || json.isEmpty())
             return null;

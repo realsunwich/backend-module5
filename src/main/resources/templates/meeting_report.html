@@ -1,18 +1,24 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" lang="th" dir="ltr">
 
 <head>
+    <meta charset="UTF-8" />
     <style>
+        @page {
+            size: A4;
+            margin: 2.5cm 2cm;
+        }
+
         @font-face {
             font-family: 'Sarabun';
-            src: url(file:src/main/resources/fonts/Sarabun-Regular.ttf);
+            src: url('fonts/THSarabunNew.ttf');
             -fs-pdf-font-embed: embed;
             -fs-pdf-font-encoding: Identity-H;
         }
 
         @font-face {
             font-family: 'Sarabun';
-            src: url(file:src/main/resources/fonts/Sarabun-Bold.ttf);
+            src: url('fonts/THSarabunNew-Bold.ttf');
             font-weight: bold;
             -fs-pdf-font-embed: embed;
             -fs-pdf-font-encoding: Identity-H;
@@ -20,39 +26,86 @@
 
         body {
             font-family: 'Sarabun', sans-serif;
-            font-size: 14px;
-            line-height: 1.6;
+            font-size: 20px;
+            line-height: 1.25;
+            color: #000;
         }
 
         .header {
             text-align: center;
             font-weight: bold;
-            font-size: 18px;
+            font-size: 26px;
+            line-height: 1.1;
             margin-bottom: 20px;
         }
 
         .section-title {
             font-weight: bold;
+            font-size: 22px;
+            margin-bottom: 0px;
+            padding: 5px 10px;
             margin-top: 15px;
-            font-size: 16px;
+            line-height: 1.2;
         }
 
         .content {
-            margin-left: 15px;
-            margin-top: 5px;
-            text-align: justify;
+            text-align: left;
+            margin-left: 10px;
+            margin-top: 0px;
+            padding-top: 5px;
+            word-break: break-word;
+            overflow-wrap: break-word;
         }
 
+        .agenda-item {
+            margin-bottom: 6px;
+            line-height: 1.3;
+        }
+
+        .agenda-item p {
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        .content p,
+        .content div {
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+            padding: 0;
+        }
+
+        .content>*:first-child {
+            margin-top: 0 !important;
+        }
+
+        /* --- แก้ไขจุดนี้: จัดระยะเส้นใต้ให้ไม่ทับสระ --- */
         .sub-header {
             font-weight: bold;
             margin-top: 10px;
-            margin-bottom: 5px;
-            text-decoration: underline;
+
+            /* ต้องเผื่อระยะด้านล่างเพิ่มขึ้น เพราะเราดันเส้นลงไปด้วย padding */
+            margin-bottom: 6px;
+
+            text-decoration: none;
+            display: inline-block;
+
+            /* เทคนิค: */
+            border-bottom: 1px solid #000;
+            /* เส้น */
+
+            /* 1. บีบบรรทัดให้ชิดตัวหนังสือที่สุด */
+            line-height: 1.0;
+
+            /* 2. ดันเส้นลงไป 5px (ระยะนี้พ้นสระอุ/อู/ฎ/ฏ แน่นอนสำหรับฟอนต์ 20px) */
+            padding-bottom: 5px;
         }
 
         .list-item {
-            margin-bottom: 4px;
-            padding-left: 10px;
+            margin-bottom: 2px;
+            padding-left: 15px;
+            white-space: normal;
+            word-break: break-word;
+            line-height: 1.2;
         }
     </style>
 </head>
@@ -62,7 +115,7 @@
     <div class="header">
         <div th:text="${meetingTitle}">รายงานการประชุม</div>
         <div th:text="'ครั้งที่ ' + ${meetingNo}">ครั้งที่...</div>
-        <div style="font-size: 14px; font-weight: normal;"
+        <div style="font-size: 18px; font-weight: normal; margin-top: 5px;"
             th:text="'เมื่อวันที่ ' + ${formattedDate} + ' เวลา ' + ${meetingTime} + ' น. ณ ' + ${location}">
         </div>
     </div>
@@ -125,7 +178,7 @@
         <div class="sub-header">รายการทรัพย์สิน</div>
         <div th:if="${#lists.isEmpty(agendaFiveAssets)}">- ไม่มีรายการทรัพย์สิน -</div>
 
-        <div th:each="asset : ${agendaFourAssets}" class="list-item">
+        <div th:each="asset : ${agendaFiveAssets}" class="list-item">
             <span th:text="${asset.no} + '. ' + ${asset.asset}"></span>
 
             <span th:if="${asset.fileNo != '-' && asset.fileNo != null && asset.fileNo != ''}"
@@ -140,15 +193,15 @@
         <div class="section-title">มติที่ประชุม</div>
         <div th:if="${resDetail != null}">
             <strong>มติทั่วไป</strong>
-            <div th:utext="${resDetail}"></div>
+            <div class="content" th:utext="${resDetail}"></div>
         </div>
         <div th:if="${resFour != null}" style="margin-top: 10px;">
             <strong>มติวาระที่ 4</strong>
-            <div th:utext="${resFour}"></div>
+            <div class="content" th:utext="${resFour}"></div>
         </div>
         <div th:if="${resFive != null}" style="margin-top: 10px;">
             <strong>มติวาระที่ 5</strong>
-            <div th:utext="${resFive}"></div>
+            <div class="content" th:utext="${resFive}"></div>
         </div>
     </div>
 
