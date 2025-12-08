@@ -101,7 +101,7 @@ public class MeetingController {
                             "</div>" +
                             "<div style=\"padding: 30px;\">" +
                             "<h3 style=\"color: #141371; margin-top: 0;\">เรียน ผู้ดูแลระบบ</h3>" +
-                            "<p>ระบบขอแจ้งให้ทราบว่า การบันทึกข้อมูลวาระการประชุมได้ดำเนินการเสร็จสิ้นเรียบร้อยแล้ว โดยมีรายละเอียดดังนี้:</p>"
+                            "<p>ระบบขอแจ้งให้ทราบว่า การบันทึกข้อมูลวาระการประชุมได้ดำเนินการเสร็จสิ้นเรียบร้อยแล้ว โดยมีรายละเอียดดังนี้</p>"
                             +
 
                             "<div style=\"background-color: #f9fafb; padding: 20px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #3B82F6;\">"
@@ -112,7 +112,7 @@ public class MeetingController {
                             +
                             "</div>" +
 
-                            "<p>ท่านสามารถตรวจสอบข้อมูลและดำเนินการต่อได้ที่ลิงก์ด้านล่าง:</p>" +
+                            "<p>ท่านสามารถตรวจสอบข้อมูลและดำเนินการต่อได้ที่ลิงก์ด้านล่าง</p>" +
                             "<div style=\"text-align: center; margin: 30px 0;\">" +
                             "<a href=\"%s\" style=\"background-color: #3B82F6; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;\">เข้าสู่ระบบเพื่อตรวจสอบ</a>"
                             +
@@ -184,18 +184,18 @@ public class MeetingController {
                                 "</div>" +
                                 "<div style=\"padding: 30px;\">" +
                                 "<h3 style=\"color: #059669; margin-top: 0;\">เรียน ผู้เกี่ยวข้อง</h3>" +
-                                "<p>การประชุมดังต่อไปนี้ ได้รับการลงมติและสรุปผลการประชุมเป็นที่เรียบร้อยแล้ว:</p>" +
+                                "<p>การประชุมดังต่อไปนี้ ได้รับการลงมติและสรุปผลการประชุมเป็นที่เรียบร้อยแล้ว</p>" +
 
                                 "<div style=\"background-color: #f9fafb; padding: 20px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #059669;\">"
                                 +
                                 "<p style=\"margin: 5px 0;\"><b>เลขคำสั่งตรวจสอบ:</b> %s</p>" +
                                 "<p style=\"margin: 5px 0;\"><b>หัวข้อเรื่อง:</b> %s</p>" +
                                 "<p style=\"margin: 5px 0;\"><b>วันที่ประชุม:</b> %s</p>" +
-                                "<p style=\"margin: 5px 0;\"><b>สถานะ:</b> <span style=\"color: #059669; font-weight: bold;\">เผยแพร่แล้ว (PUBLISH)</span></p>"
+                                "<p style=\"margin: 5px 0;\"><b>สถานะ:</b> <span style=\"color: #059669; font-weight: bold;\">สรุปผลการประชุมและลงมติเรียบร้อยแล้ว</span></p>"
                                 +
                                 "</div>" +
 
-                                "<p>ท่านสามารถดูรายละเอียดผลการประชุมได้ที่:</p>" +
+                                "<p>ท่านสามารถดูรายละเอียดผลการประชุมได้ที่</p>" +
                                 "<div style=\"text-align: center; margin: 30px 0;\">" +
                                 "<a href=\"%s\" style=\"background-color: #059669; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;\">ดูรายละเอียด</a>"
                                 +
