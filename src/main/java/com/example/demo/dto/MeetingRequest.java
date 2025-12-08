@@ -27,6 +27,8 @@ public class MeetingRequest {
     private String status;
     private List<Long> memberIds;
 
+    private Integer currentStep;
+
     @JsonProperty("agenda_1_data")
     @JsonAlias("agendaOneData")
     private String agendaOneData;

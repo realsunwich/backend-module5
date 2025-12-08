@@ -34,13 +34,11 @@ public class MeetingController {
         }
     }
 
-    // --- 1. สร้างการประชุม (ปรับปรุงข้อความแจ้งเตือน) ---
     @PostMapping("/meetings")
     public ResponseEntity<?> createMeeting(@RequestBody MeetingRequest request) {
         try {
             Meeting newMeeting = meetingService.createMeeting(request);
 
-            // ✅ ปรับปรุง: ดึง "ชื่อเรื่อง" และ "วันเวลา" มาแสดงให้ชัดเจน
             String title = "มีการนัดหมายการประชุมใหม่";
             String message = String.format("เรื่อง %s (รหัส %s) นัดหมายวันที่ %s เวลา %s",
                     newMeeting.getDescription(),
@@ -57,32 +55,23 @@ public class MeetingController {
         }
     }
 
-    // --- 2. อัปเดตสถานะ (ปรับปรุงข้อความแจ้งเตือน) ---
     @PutMapping("/meetings/{id}")
-    public ResponseEntity<?> updateMeeting(
-            @PathVariable Long id,
-            @RequestBody MeetingRequest request) {
-        try {
-            Meeting updatedMeeting = meetingService.updateMeeting(id, request);
+    public ResponseEntity<?> updateMeeting(@PathVariable Long id, @RequestBody MeetingRequest request) {
+        Meeting updatedMeeting = meetingService.updateMeeting(id, request);
 
-            if (updatedMeeting.getStatus() != null) {
-                // ✅ ปรับปรุง: แสดงชื่อเรื่อง และสถานะที่เปลี่ยนไปอย่างชัดเจน
-                String title = "สถานะการประชุมอัปเดต";
-                String message = String.format("เรื่อง %s (รหัส %s) สถานะ%s",
-                        updatedMeeting.getDescription(),
-                        updatedMeeting.getMeetingNo(),
-                        updatedMeeting.getStatus());
+        // 🔥 แก้ไข: เช็ค null ก่อนเปรียบเทียบ (ป้องกัน NullPointerException)
+        // จากเดิม: if (request.getCurrentStep() == 5 ...
+        if (request.getCurrentStep() != null && request.getCurrentStep() == 5
+                && "ACTIVE".equalsIgnoreCase(updatedMeeting.getStatus())) {
 
-                createNotification("STATUS_CHANGE", title, message, updatedMeeting);
-            }
+            String title = "การบันทึกข้อมูลวาระเสร็จสิ้น";
+            String message = String.format("การประชุมรหัส %s บันทึกวาระที่ 5 ครบถ้วนแล้ว พร้อมสำหรับการตรวจสอบ",
+                    updatedMeeting.getMeetingNo());
 
-            return ResponseEntity.ok(updatedMeeting);
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Error: " + e.getMessage());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error updating meeting: " + e.getMessage());
+            createNotification("STATUS_CHANGE", title, message, updatedMeeting);
         }
+
+        return ResponseEntity.ok(updatedMeeting);
     }
 
     @GetMapping("/meetings/{id}")
@@ -97,7 +86,6 @@ public class MeetingController {
         }
     }
 
-    // --- 3. บันทึกมติ/ปิดการประชุม (ปรับปรุงข้อความแจ้งเตือน) ---
     @PutMapping("/meetings/{id}/resolutions")
     public ResponseEntity<?> updateMeetingResolutions(
             @PathVariable Long id,
@@ -106,7 +94,6 @@ public class MeetingController {
             Meeting updated = meetingService.updateMeetingResolutions(id, request);
 
             if ("PUBLISH".equalsIgnoreCase(updated.getStatus())) {
-                // ✅ ปรับปรุง: แจ้งเตือนเมื่อประชุมเสร็จสิ้น (PUBLISH)
                 String title = "สรุปผลการประชุมเรียบร้อย";
                 String message = String.format("เรื่อง %s (รหัส %s) ได้รับการลงมติและสรุปผลแล้ว",
                         updated.getDescription(),
@@ -128,7 +115,7 @@ public class MeetingController {
             Notification n = new Notification();
             n.setType(type);
             n.setTitle(title);
-            n.setMessage(message); // ข้อความที่ปรับปรุงแล้วจะถูกบันทึกที่นี่
+            n.setMessage(message);
             n.setRead(false);
             n.setTimestamp(LocalDateTime.now());
             n.setMeetingId(meeting.getId());
