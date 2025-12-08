@@ -36,23 +36,18 @@
             font-weight: bold;
             font-size: 26px;
             line-height: 1.1;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
         }
 
         .section-title {
             font-weight: bold;
             font-size: 22px;
-            margin-bottom: 0px;
-            padding: 5px 10px;
-            margin-top: 15px;
             line-height: 1.2;
         }
 
         .content {
             text-align: left;
             margin-left: 10px;
-            margin-top: 0px;
-            padding-top: 5px;
             word-break: break-word;
             overflow-wrap: break-word;
         }
@@ -78,25 +73,14 @@
             margin-top: 0 !important;
         }
 
-        /* --- แก้ไขจุดนี้: จัดระยะเส้นใต้ให้ไม่ทับสระ --- */
         .sub-header {
             font-weight: bold;
             margin-top: 10px;
-
-            /* ต้องเผื่อระยะด้านล่างเพิ่มขึ้น เพราะเราดันเส้นลงไปด้วย padding */
             margin-bottom: 6px;
-
             text-decoration: none;
             display: inline-block;
-
-            /* เทคนิค: */
             border-bottom: 1px solid #000;
-            /* เส้น */
-
-            /* 1. บีบบรรทัดให้ชิดตัวหนังสือที่สุด */
             line-height: 1.0;
-
-            /* 2. ดันเส้นลงไป 5px (ระยะนี้พ้นสระอุ/อู/ฎ/ฏ แน่นอนสำหรับฟอนต์ 20px) */
             padding-bottom: 5px;
         }
 
@@ -115,7 +99,7 @@
     <div class="header">
         <div th:text="${meetingTitle}">รายงานการประชุม</div>
         <div th:text="'ครั้งที่ ' + ${meetingNo}">ครั้งที่...</div>
-        <div style="font-size: 18px; font-weight: normal; margin-top: 5px;"
+        <div style="font-size: 18px; font-weight: normal; margin-top: 2px;"
             th:text="'เมื่อวันที่ ' + ${formattedDate} + ' เวลา ' + ${meetingTime} + ' น. ณ ' + ${location}">
         </div>
     </div>

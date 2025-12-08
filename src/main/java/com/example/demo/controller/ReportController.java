@@ -3,7 +3,6 @@ package com.example.demo.controller;
 import com.example.demo.dto.MeetingRequest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-// Import สำหรับจัดระเบียบภาษาไทย (Text Shaping)
 import com.openhtmltopdf.bidi.support.ICUBidiReorderer;
 import com.openhtmltopdf.bidi.support.ICUBidiSplitter;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
@@ -79,11 +78,9 @@ public class ReportController {
             String htmlContent = templateEngine.process("meeting_report", context);
 
             PdfRendererBuilder builder = new PdfRendererBuilder();
-
-            // ใช้ Text Shaping สำหรับภาษาไทย
+            // เปิดใช้งาน Text Shaping สำหรับภาษาไทย (สระไม่ซ้อน)
             builder.useUnicodeBidiSplitter(new ICUBidiSplitter.ICUBidiSplitterFactory());
             builder.useUnicodeBidiReorderer(new ICUBidiReorderer());
-
             // กำหนดทิศทาง Default
             builder.defaultTextDirection(BaseRendererBuilder.TextDirection.LTR);
 
@@ -173,7 +170,7 @@ public class ReportController {
         }
     }
 
-    // --- จุดที่ปรับปรุง: ใส่ div class='agenda-item' ครอบรายการย่อย ---
+    // --- ปรับปรุง: เช็คค่าว่างก่อนสร้าง div เพื่อไม่ให้เกิดช่องว่างส่วนเกิน ---
     private String parseGenericText(String json) {
         if (json == null || json.isEmpty() || json.equals("{}"))
             return "-ไม่มีรายละเอียด-";
@@ -185,8 +182,10 @@ public class ReportController {
                 for (JsonNode sub : root.get("subAgendas")) {
                     String detail = sub.path("detail").asText("");
 
-                    // ใช้ div เพื่อให้ CSS .agenda-item ทำงานได้ (ควบคุมระยะห่างบรรทัด)
-                    sb.append("<div class='agenda-item'>").append(detail).append("</div>");
+                    // เช็คว่ามีข้อความจริงๆ ไหม ถ้าไม่มีไม่ต้องสร้าง div
+                    if (!detail.isEmpty()) {
+                        sb.append("<div class='agenda-item'>").append(detail).append("</div>");
+                    }
                 }
                 String res = sb.toString();
                 return res.isEmpty() ? "-ไม่มีรายละเอียด-" : res;
@@ -197,6 +196,7 @@ public class ReportController {
         }
     }
 
+    // --- ปรับปรุง: รองรับการขึ้นบรรทัดใหม่ (Newline) ในส่วนมติที่ประชุม ---
     private String parseResolutionText(String json) {
         if (json == null || json.isEmpty())
             return null;
