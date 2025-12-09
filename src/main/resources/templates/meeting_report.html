@@ -8,7 +8,7 @@
             size: A4;
             margin-top: 2.5cm;
             margin-bottom: 2cm;
-            margin-left: 2.8cm;
+            margin-left: 2cm;
             margin-right: 2cm;
 
             @top-right {
@@ -119,11 +119,8 @@
 
         u,
         .underline {
-            text-decoration: underline;
-            text-decoration-color: #000;
-            text-decoration-thickness: 1px;
-            text-decoration-skip-ink: none;
-            display: inline;
+            border-bottom: 1px solid #000;
+            padding-bottom: 1px;
         }
 
         .sub-header {
@@ -165,6 +162,8 @@
 </head>
 
 <body>
+
+    <img class="garuda" th:src="@{'file:/D:/ilustro/demo/uploads/garuda.png'}" />
 
     <div class="header-title" th:text="${meetingTitle}">รายงานการประชุม...</div>
 

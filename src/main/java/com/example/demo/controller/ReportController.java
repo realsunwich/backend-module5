@@ -3,13 +3,11 @@ package com.example.demo.controller;
 import com.example.demo.dto.MeetingRequest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.openhtmltopdf.bidi.support.ICUBidiReorderer;
 import com.openhtmltopdf.bidi.support.ICUBidiSplitter;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
 import com.openhtmltopdf.outputdevice.helper.BaseRendererBuilder;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Entities;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -35,8 +33,6 @@ public class ReportController {
     private static final String TEMPLATE_NAME = "meeting_report";
     private static final String PDF_FILENAME = "meeting-report.pdf";
     private static final String RESOURCES_PATH = "src/main/resources/";
-    private static final String UNDERLINE_CLASS = "<span class='underline'>";
-    private static final String UNDERLINE_CLOSE = "</span>";
 
     @Autowired
     private TemplateEngine templateEngine;
@@ -120,29 +116,7 @@ public class ReportController {
     }
 
     private String sanitizeHtml(String html) {
-        if (html == null) {
-            return "";
-        }
-
-        html = html.trim();
-        html = trimAfterHtmlTag(html);
-        html = convertUnderlineTags(html);
-        html = cleanFinalDocument(html);
-
-        return html;
-    }
-
-    private String trimAfterHtmlTag(String html) {
-        int htmlEndIndex = html.lastIndexOf("</html>");
-        if (htmlEndIndex > 0) {
-            return html.substring(0, htmlEndIndex + 7);
-        }
-        return html;
-    }
-
-    private String convertUnderlineTags(String html) {
-        return html.replaceAll("<u>", UNDERLINE_CLASS)
-                .replaceAll("</u>", UNDERLINE_CLOSE);
+        return html; // ไม่มีแตะต้อง HTML
     }
 
     private byte[] generatePdfFromHtml(String htmlContent, ByteArrayOutputStream outputStream) throws Exception {
@@ -178,7 +152,6 @@ public class ReportController {
         return ResponseEntity.status(500).body(errorResponse);
     }
 
-    // ... (Helper Methods: parseItems, parseAssets, mapStatus เหมือนเดิม) ...
     private List<Map<String, String>> parseItems(String json) {
         List<Map<String, String>> result = new ArrayList<>();
         if (json == null || json.isEmpty())
@@ -245,80 +218,53 @@ public class ReportController {
         }
     }
 
-    // --- [NEW STRATEGY] เปลี่ยน <u> เป็น <span> เพื่อเลี่ยงปัญหา XML Tag ของ <u>
-    // ---
-    // เพราะ <u> มักจะมีปัญหากับ Strict XML Parser มากกว่า <span>
-    private String cleanAndConvertToXhtml(String html) {
-        if (html == null || html.isEmpty()) {
-            return "";
+    private String parseGenericText(String json) {
+        if (json == null || json.isEmpty() || json.equals("{}")) {
+            return "-ไม่มีรายละเอียด-";
         }
 
-        // Step 1: แทนที่ <u> ด้วย <span class='underline'> ตั้งแต่ต้นทาง
-        // วิธีนี้ตัดปัญหาเรื่อง tag u ปิดไม่ครบได้ดีกว่าเพราะ span จัดการง่ายกว่าใน
-        // Jsoup
-        String safeHtml = html.replaceAll("(?i)<u>", "<span class='underline'>")
-                .replaceAll("(?i)</u>", "</span>");
-
-        // Step 2: ให้ Jsoup Clean และจัดระเบียบ XML
-        Document document = Jsoup.parseBodyFragment(safeHtml);
-        document.outputSettings()
-                .syntax(Document.OutputSettings.Syntax.xml)
-                .escapeMode(Entities.EscapeMode.xhtml)
-                .charset("UTF-8")
-                .prettyPrint(false);
-
-        return document.body().html();
-    }
-
-    // Method ใหม่สำหรับ Clean ทั้งไฟล์ครั้งสุดท้าย
-    private String cleanFinalDocument(String html) {
-        Document document = Jsoup.parse(html); // Parse ทั้งไฟล์
-        document.outputSettings()
-                .syntax(Document.OutputSettings.Syntax.xml)
-                .escapeMode(Entities.EscapeMode.xhtml)
-                .charset("UTF-8")
-                .prettyPrint(false);
-        return document.html();
-    }
-
-    private String parseGenericText(String json) {
-        if (json == null || json.isEmpty() || json.equals("{}"))
-            return "-ไม่มีรายละเอียด-";
         try {
             ObjectMapper mapper = new ObjectMapper();
             JsonNode root = mapper.readTree(json);
-            if (root.has("subAgendas") && root.get("subAgendas").isArray()) {
+
+            // มี subAgendas → ใช้วาระ 1–3
+            if (root.has("subAgendas")) {
+                ArrayNode subAgendas = (ArrayNode) root.get("subAgendas");
+
                 StringBuilder sb = new StringBuilder();
-                for (JsonNode sub : root.get("subAgendas")) {
-                    String detail = sub.path("detail").asText("").trim();
-                    if (!detail.isEmpty()) {
-                        String cleanDetail = cleanAndConvertToXhtml(detail);
-                        sb.append("<div class='agenda-item'>").append(cleanDetail).append("</div>");
+
+                for (JsonNode sub : subAgendas) {
+                    if (sub.has("detail")) {
+                        sb.append(sub.get("detail").asText());
                     }
                 }
-                String res = sb.toString();
-                return res.isEmpty() ? "-ไม่มีรายละเอียด-" : res;
+                if (sb.length() == 0) {
+                    return "-ไม่มีรายละเอียด-";
+                }
+                return sb.toString();
             }
-            return cleanAndConvertToXhtml(json);
+            return json;
         } catch (Exception e) {
-            return cleanAndConvertToXhtml(json);
+            return json;
         }
     }
 
     private String parseResolutionText(String json) {
-        if (json == null || json.isEmpty())
+        if (json == null || json.isEmpty()) {
             return null;
+        }
+
         if (json.trim().startsWith("{")) {
             try {
                 ObjectMapper mapper = new ObjectMapper();
                 JsonNode root = mapper.readTree(json);
+
                 if (root.has("detail")) {
-                    String detail = root.get("detail").asText("").trim();
-                    return cleanAndConvertToXhtml(detail);
+                    return root.get("detail").asText();
                 }
             } catch (Exception e) {
             }
         }
-        return cleanAndConvertToXhtml(json);
+        return json;
     }
 }
