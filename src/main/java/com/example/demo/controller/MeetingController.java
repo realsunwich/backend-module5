@@ -55,8 +55,9 @@ public class MeetingController {
             Meeting newMeeting = meetingService.createMeeting(request);
 
             String title = "มีการนัดหมายการประชุมใหม่";
+            // ปรับปรุง: รองรับ description ที่เป็น HTML
             String message = String.format("เรื่อง %s (รหัส %s) นัดหมายวันที่ %s เวลา %s",
-                    newMeeting.getDescription(),
+                    newMeeting.getDescription(), // ข้อมูลนี้มี HTML Tags เช่น <p>...</p>
                     newMeeting.getMeetingNo(),
                     newMeeting.getMeetingDate(),
                     newMeeting.getMeetingTime());
@@ -90,6 +91,8 @@ public class MeetingController {
             String adminEmail = "nuntiya.suw@ilustro.co";
 
             // HTML Email Template
+            // แก้ไข: ใช้ <div> แทน <p> สำหรับแสดงหัวข้อประชุม เพื่อรองรับ HTML Content จาก
+            // Editor
             String emailBody = String.format(
                     "<html>" +
                             "<body style=\"font-family: 'Sarabun', Arial, sans-serif; line-height: 1.6; color: #333;\">"
@@ -107,7 +110,8 @@ public class MeetingController {
                             "<div style=\"background-color: #f9fafb; padding: 20px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #3B82F6;\">"
                             +
                             "<p style=\"margin: 5px 0;\"><b>เลขคำสั่งตรวจสอบ:</b> %s</p>" +
-                            "<p style=\"margin: 5px 0;\"><b>หัวข้อการประชุม:</b> %s</p>" +
+                            // ใช้ div wrapper เพราะ %s อาจมี tag <p> ติดมา
+                            "<div style=\"margin: 5px 0;\"><b>หัวข้อการประชุม:</b> %s</div>" +
                             "<p style=\"margin: 5px 0;\"><b>สถานะปัจจุบัน:</b> <span style=\"color: #059669; font-weight: bold;\">รอลงมติการประชุม</span></p>"
                             +
                             "</div>" +
@@ -161,6 +165,7 @@ public class MeetingController {
 
             if ("PUBLISH".equalsIgnoreCase(updated.getStatus())) {
                 String title = "สรุปผลการประชุมเรียบร้อยแล้ว";
+                // ข้อความ Notification (DB) จะเก็บ String ที่มี HTML Tag ปนอยู่ด้วย
                 String message = String.format("เรื่อง %s (รหัส %s) ได้รับการลงมติและสรุปผลแล้ว",
                         updated.getDescription(),
                         updated.getMeetingNo());
@@ -173,6 +178,7 @@ public class MeetingController {
                 String targetEmail = "nuntiya.suw@ilustro.co";
 
                 // HTML Email Template
+                // แก้ไข: ใช้ <div> แทน <p> สำหรับแสดงหัวข้อเรื่อง
                 String emailBody = String.format(
                         "<html>" +
                                 "<body style=\"font-family: 'Sarabun', Arial, sans-serif; line-height: 1.6; color: #333;\">"
@@ -189,7 +195,8 @@ public class MeetingController {
                                 "<div style=\"background-color: #f9fafb; padding: 20px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #059669;\">"
                                 +
                                 "<p style=\"margin: 5px 0;\"><b>เลขคำสั่งตรวจสอบ:</b> %s</p>" +
-                                "<p style=\"margin: 5px 0;\"><b>หัวข้อเรื่อง:</b> %s</p>" +
+                                // ใช้ div wrapper เพื่อรองรับ HTML Content
+                                "<div style=\"margin: 5px 0;\"><b>หัวข้อเรื่อง:</b> %s</div>" +
                                 "<p style=\"margin: 5px 0;\"><b>วันที่ประชุม:</b> %s</p>" +
                                 "<p style=\"margin: 5px 0;\"><b>สถานะ:</b> <span style=\"color: #059669; font-weight: bold;\">สรุปผลการประชุมและลงมติเรียบร้อยแล้ว</span></p>"
                                 +
