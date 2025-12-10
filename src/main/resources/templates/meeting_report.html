@@ -91,6 +91,80 @@
             text-indent: 2.5cm;
         }
 
+        /* ปรับปรุงส่วนวาระย่อย */
+        .sub-agenda-list {
+            margin-left: 3cm;
+            margin-bottom: 10px;
+        }
+
+        .sub-agenda-item {
+            margin-bottom: 0.5em;
+            font-weight: normal;
+            font-size: 15pt;
+            line-height: 1.3;
+            text-indent: 0;
+        }
+
+        .sub-agenda-number {
+            font-weight: bold;
+            margin-right: 0.5em;
+            color: #333;
+            display: inline-block;
+            width: 8ch;
+            /* กำหนดความกว้างเท่ากัน เพื่อให้ข้อความเรียงเสมอกัน */
+            vertical-align: top;
+        }
+
+        .sub-agenda-content {
+            display: inline-block;
+            width: calc(100% - 8ch);
+            text-indent: 2em;
+        }
+
+        /* --- เพิ่มส่วนนี้เข้าไปครับ --- */
+        /* สั่งให้ p หรือ div ที่แทรกเข้ามาด้วย th:utext ไม่มีระยะห่าง */
+        .sub-agenda-content p,
+        .sub-agenda-content div {
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+            line-height: inherit;
+            /* ให้ใช้ความสูงบรรทัดเดียวกับแม่ */
+        }
+
+        /* ถ้าอยากให้ชิดกันมากขึ้นอีก ให้ปรับลดตรงนี้ด้วย */
+        .sub-agenda-item {
+            margin-bottom: 2px;
+            /* เดิม 0.5em (ประมาณ 8px) อาจจะเยอะไป ปรับเป็น pixel จะคุมง่ายกว่า */
+            font-weight: normal;
+            font-size: 15pt;
+            line-height: 1.3;
+            text-indent: 0;
+        }
+
+        .sub-agenda-content ul,
+        .sub-agenda-content ol {
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+            padding-left: 25px;
+            /* กำหนดระยะร่นของจุด Bullet ให้พอดีงาม (ปรับเลขนี้ได้) */
+        }
+
+        /* 2. จัดการตัวรายการ (li) */
+        .sub-agenda-content li {
+            margin-bottom: 0 !important;
+            line-height: inherit;
+            text-indent: 0 !important;
+            /* สำคัญ! ต้องลบย่อหน้าออก ไม่งั้นจุด Bullet กับตัวหนังสือจะห่างกัน */
+        }
+
+        /* 3. จัดการ <p> ที่ซ้อนอยู่ใน <li> อีกที */
+        .sub-agenda-content li p {
+            margin: 0 !important;
+            padding: 0 !important;
+            display: inline;
+            /* ให้ p แสดงผลต่อเนื่องกับจุด Bullet ทันที */
+        }
+
         .list-container {
             margin-top: 2px;
             margin-bottom: 5px;
@@ -178,20 +252,41 @@
         <div th:if="${#lists.isEmpty(attendees)}" class="empty-data">- ไม่มีข้อมูล -</div>
         <div th:each="attendee, iter : ${attendees}" class="attendee-item">
             <span class="item-number" th:text="${iter.count} + '.'"></span>
-            <span class="item-text" th:text="${attendee.prename} + ${attendee.firstname} + ' ' + ${attendee.lastname} +
-                           (${attendee.department} != null ? ' (' + ${attendee.department} + ')' : '')">
+            <span class="item-text"
+                th:text="${attendee.prename} + ${attendee.firstname} + ' ' + ${attendee.lastname} + (${attendee.department} != null ? ' (' + ${attendee.department} + ')' : '')">
             </span>
         </div>
     </div>
 
     <div class="section-title">ระเบียบวาระที่ ๑</div>
-    <div class="content" th:utext="${agendaOne}"></div>
+    <div th:if="${agendaOneSubAgendas != null and !#lists.isEmpty(agendaOneSubAgendas)}" class="sub-agenda-list">
+        <div th:each="sub, iter : ${agendaOneSubAgendas}" class="sub-agenda-item">
+            <span class="sub-agenda-number" th:text="'วาระย่อยที่ 1.' + ${iter.count}"></span>
+            <div class="sub-agenda-content" th:utext="${sub.detail}"></div>
+        </div>
+    </div>
+    <div class="content" th:if="${agendaOneSubAgendas == null or #lists.isEmpty(agendaOneSubAgendas)}"
+        th:utext="${agendaOne}"></div>
 
     <div class="section-title">ระเบียบวาระที่ ๒</div>
-    <div class="content" th:utext="${agendaTwo}"></div>
+    <div th:if="${agendaTwoSubAgendas != null and !#lists.isEmpty(agendaTwoSubAgendas)}" class="sub-agenda-list">
+        <div th:each="sub, iter : ${agendaTwoSubAgendas}" class="sub-agenda-item">
+            <span class="sub-agenda-number" th:text="'วาระย่อยที่ 2.' + ${iter.count}"></span>
+            <div class="sub-agenda-content" th:utext="${sub.detail}"></div>
+        </div>
+    </div>
+    <div class="content" th:if="${agendaTwoSubAgendas == null or #lists.isEmpty(agendaTwoSubAgendas)}"
+        th:utext="${agendaTwo}"></div>
 
     <div class="section-title">ระเบียบวาระที่ ๓</div>
-    <div class="content" th:utext="${agendaThree}"></div>
+    <div th:if="${agendaThreeSubAgendas != null and !#lists.isEmpty(agendaThreeSubAgendas)}" class="sub-agenda-list">
+        <div th:each="sub, iter : ${agendaThreeSubAgendas}" class="sub-agenda-item">
+            <span class="sub-agenda-number" th:text="'วาระย่อยที่ 3.' + ${iter.count}"></span>
+            <div class="sub-agenda-content" th:utext="${sub.detail}"></div>
+        </div>
+    </div>
+    <div class="content" th:if="${agendaThreeSubAgendas == null or #lists.isEmpty(agendaThreeSubAgendas)}"
+        th:utext="${agendaThree}"></div>
 
     <div class="section-title">ระเบียบวาระที่ ๔</div>
 

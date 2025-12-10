@@ -15,6 +15,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Entities.EscapeMode;
+import org.jsoup.safety.Safelist;
 
 import java.io.ByteArrayOutputStream;
 import java.text.DecimalFormat;
@@ -41,7 +45,14 @@ public class ReportController {
     public ResponseEntity<?> generateEbook(@RequestBody MeetingRequest data) {
         try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             Context context = buildContext(data);
+
+            // Generate HTML
             String htmlContent = generateHtmlContent(context);
+
+            // --- DEBUG: ปริ้น HTML ออกมาดูว่า Tag li ถูกปิดครบไหม ---
+            System.out.println("DEBUG HTML CONTENT:\n" + htmlContent);
+            // -----------------------------------------------------
+
             byte[] pdfBytes = generatePdfFromHtml(htmlContent, outputStream);
 
             return ResponseEntity.ok()
@@ -77,9 +88,14 @@ public class ReportController {
     }
 
     private void setAgendaVariables(Context context, MeetingRequest data) {
+        context.setVariable("agendaOneSubAgendas", parseSubAgendas(data.getAgendaOneData()));
+        context.setVariable("agendaTwoSubAgendas", parseSubAgendas(data.getAgendaTwoData()));
+        context.setVariable("agendaThreeSubAgendas", parseSubAgendas(data.getAgendaThreeData()));
+
         context.setVariable("agendaOne", parseGenericText(data.getAgendaOneData()));
         context.setVariable("agendaTwo", parseGenericText(data.getAgendaTwoData()));
         context.setVariable("agendaThree", parseGenericText(data.getAgendaThreeData()));
+
         context.setVariable("agendaFourItems", parseItems(data.getAgendaFourData()));
         context.setVariable("agendaFourAssets", parseAssets(data.getAgendaFourData()));
         context.setVariable("agendaFiveItems", parseItems(data.getAgendaFiveData()));
@@ -116,7 +132,29 @@ public class ReportController {
     }
 
     private String sanitizeHtml(String html) {
-        return html; // ไม่มีแตะต้อง HTML
+        try {
+            // Parse the entire HTML document with Jsoup
+            Document document = Jsoup.parse(html);
+
+            // Set output to XHTML format
+            document.outputSettings().syntax(Document.OutputSettings.Syntax.xml);
+            document.outputSettings().escapeMode(EscapeMode.xhtml);
+            document.outputSettings().charset("UTF-8");
+
+            // Get the full HTML with properly closed tags
+            String cleanHtml = document.html();
+
+            // Remove empty paragraph and div tags that might cause issues
+            cleanHtml = cleanHtml.replaceAll("<p>\\s*</p>", "");
+            cleanHtml = cleanHtml.replaceAll("<p\\s*/>", "");
+            cleanHtml = cleanHtml.replaceAll("<div>\\s*</div>", "");
+            cleanHtml = cleanHtml.replaceAll("<div\\s*/>", "");
+
+            return cleanHtml;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return html;
+        }
     }
 
     private byte[] generatePdfFromHtml(String htmlContent, ByteArrayOutputStream outputStream) throws Exception {
@@ -126,6 +164,44 @@ public class ReportController {
         builder.run();
 
         return outputStream.toByteArray();
+    }
+
+    private String convertToXhtml(String html) {
+        if (html == null || html.isEmpty()) {
+            return "";
+        }
+
+        try {
+            // 1. Parse HTML ด้วย Jsoup เป็น Document ก่อน (ไม่ clean ก่อน)
+            Document document = Jsoup.parseBodyFragment(html);
+
+            // 2. ตั้งค่า output เป็น XML (XHTML) syntax
+            document.outputSettings().syntax(Document.OutputSettings.Syntax.xml);
+            document.outputSettings().escapeMode(EscapeMode.xhtml);
+            document.outputSettings().charset("UTF-8");
+            document.outputSettings().prettyPrint(true);
+
+            // 3. ดึง HTML ออกมา (Jsoup จะปิด tag ให้อัตโนมัติ)
+            String finalHtml = document.body().html();
+
+            // 4. ลบ empty tags ที่ไม่จำเป็น
+            finalHtml = finalHtml.replaceAll("<p>\\s*</p>", "");
+            finalHtml = finalHtml.replaceAll("<p\\s*/>", "");
+            finalHtml = finalHtml.replaceAll("<div>\\s*</div>", "");
+            finalHtml = finalHtml.replaceAll("<div\\s*/>", "");
+
+            // 5. เช็คกรณีพิเศษ: ถ้าขึ้นต้นด้วย <li> แต่ไม่มี <ul> หรือ <ol> ครอบ
+            if (finalHtml.trim().startsWith("<li") && !finalHtml.contains("<ul") && !finalHtml.contains("<ol")) {
+                finalHtml = "<ul>" + finalHtml + "</ul>";
+            }
+
+            return finalHtml;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            // กรณี error ให้ return HTML ที่ escape แล้ว
+            return Jsoup.clean(html, Safelist.relaxed());
+        }
     }
 
     private void configurePdfBuilder(PdfRendererBuilder builder, String htmlContent) {
@@ -149,6 +225,10 @@ public class ReportController {
         Map<String, String> errorResponse = new HashMap<>();
         errorResponse.put("error", "PDF Generation Failed");
         errorResponse.put("message", e.getMessage());
+        // เพิ่ม message ย่อยถ้ามี
+        if (e.getCause() != null) {
+            errorResponse.put("cause", e.getCause().getMessage());
+        }
         return ResponseEntity.status(500).body(errorResponse);
     }
 
@@ -227,10 +307,8 @@ public class ReportController {
             ObjectMapper mapper = new ObjectMapper();
             JsonNode root = mapper.readTree(json);
 
-            // มี subAgendas → ใช้วาระ 1–3
             if (root.has("subAgendas")) {
                 ArrayNode subAgendas = (ArrayNode) root.get("subAgendas");
-
                 StringBuilder sb = new StringBuilder();
 
                 for (JsonNode sub : subAgendas) {
@@ -241,12 +319,42 @@ public class ReportController {
                 if (sb.length() == 0) {
                     return "-ไม่มีรายละเอียด-";
                 }
-                return sb.toString();
+                return convertToXhtml(sb.toString());
             }
-            return json;
+            // กรณีไม่ใช่ subAgendas ผ่าน Jsoup ด้วย
+            return convertToXhtml(json);
         } catch (Exception e) {
-            return json;
+            // กรณี Parse JSON ไม่ได้ ผ่าน Jsoup ด้วย
+            return convertToXhtml(json);
         }
+    }
+
+    private List<Map<String, String>> parseSubAgendas(String json) {
+        List<Map<String, String>> result = new ArrayList<>();
+        if (json == null || json.isEmpty())
+            return result;
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(json);
+            if (root.has("subAgendas") && root.get("subAgendas").isArray()) {
+                int idx = 1;
+                for (JsonNode sub : root.get("subAgendas")) {
+                    Map<String, String> map = new HashMap<>();
+                    String detail = sub.path("detail").asText("-");
+
+                    if (detail != null && !detail.equals("-")) {
+                        detail = detail.replaceAll("\\r?\\n", " ").trim();
+                        detail = convertToXhtml(detail);
+                    }
+                    map.put("detail", detail);
+                    map.put("order", String.valueOf(idx++));
+                    result.add(map);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return result;
     }
 
     private String parseResolutionText(String json) {
@@ -258,13 +366,13 @@ public class ReportController {
             try {
                 ObjectMapper mapper = new ObjectMapper();
                 JsonNode root = mapper.readTree(json);
-
                 if (root.has("detail")) {
-                    return root.get("detail").asText();
+                    return convertToXhtml(root.get("detail").asText());
                 }
             } catch (Exception e) {
             }
         }
-        return json;
+        // กรณีไม่ใช่ JSON ผ่าน Jsoup ด้วย
+        return convertToXhtml(json);
     }
 }
