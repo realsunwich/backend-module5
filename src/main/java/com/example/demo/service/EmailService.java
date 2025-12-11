@@ -26,9 +26,12 @@ public class EmailService {
             helper.setText(body, true);
 
             mailSender.send(message);
-            System.out.println("HTML Email sent to " + to);
         } catch (MessagingException e) {
-            System.err.println("Failed to send email: " + e.getMessage());
+            System.err.println("Failed to send email to " + to + ": " + e.getMessage());
+            e.printStackTrace();
+        } catch (Exception e) {
+            System.err.println("Unexpected error sending email to " + to + ": " + e.getMessage());
+            e.printStackTrace();
         }
     }
 }

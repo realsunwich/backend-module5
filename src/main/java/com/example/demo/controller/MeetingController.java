@@ -1,6 +1,7 @@
 package com.example.demo.controller;
 
 import com.example.demo.dto.MeetingRequest;
+import com.example.demo.entity.CommitteeMember;
 import com.example.demo.entity.Meeting;
 import com.example.demo.entity.Notification;
 import com.example.demo.service.EmailService;
@@ -31,9 +32,9 @@ public class MeetingController {
     // --- Helper Function: สร้าง URL ตามประเภทการประชุม ---
     private String getMeetingUrl(String typeCode, Long id) {
         String path = "subCommittee";
-        if ("002".equals(typeCode)) {
+        if ("003".equals(typeCode)) {
             path = "MillionAssets";
-        } else if ("003".equals(typeCode)) {
+        } else if ("002".equals(typeCode)) {
             path = "AssetsCheck";
         }
         return String.format("http://localhost:3000/Meetings/%s/%d", path, id);
@@ -53,17 +54,6 @@ public class MeetingController {
     public ResponseEntity<?> createMeeting(@RequestBody MeetingRequest request) {
         try {
             Meeting newMeeting = meetingService.createMeeting(request);
-
-            String title = "มีการนัดหมายการประชุมใหม่";
-            // ปรับปรุง: รองรับ description ที่เป็น HTML
-            String message = String.format("เรื่อง %s (รหัส %s) นัดหมายวันที่ %s เวลา %s",
-                    newMeeting.getDescription(), // ข้อมูลนี้มี HTML Tags เช่น <p>...</p>
-                    newMeeting.getMeetingNo(),
-                    newMeeting.getMeetingDate(),
-                    newMeeting.getMeetingTime());
-
-            createNotification("NEW_MEETING", title, message, newMeeting);
-
             return ResponseEntity.ok(newMeeting);
         } catch (Exception e) {
             e.printStackTrace();
@@ -71,54 +61,42 @@ public class MeetingController {
         }
     }
 
-    // --- 1. บันทึกวาระเสร็จสิ้น (HTML Email) ---
     @PutMapping("/meetings/{id}")
     public ResponseEntity<?> updateMeeting(@PathVariable Long id, @RequestBody MeetingRequest request) {
         Meeting updatedMeeting = meetingService.updateMeeting(id, request);
 
-        if (request.getCurrentStep() != null && request.getCurrentStep() == 5
-                && "ACTIVE".equalsIgnoreCase(updatedMeeting.getStatus())) {
+        if ("ACTIVE".equalsIgnoreCase(updatedMeeting.getStatus())
+                && updatedMeeting.getAttendees() != null && !updatedMeeting.getAttendees().isEmpty()
+                && request.getCurrentStep() != null && request.getCurrentStep() == 5) {
 
-            String title = "บันทึกวาระการประชุมเสร็จสิ้น";
-            String notifMessage = String.format("การประชุมรหัส %s บันทึกวาระที่ 5 ครบถ้วนแล้ว พร้อมสำหรับการตรวจสอบ",
-                    updatedMeeting.getMeetingNo());
-
-            // 1. Notification (ในเว็บ)
-            createNotification("STATUS_CHANGE", title, notifMessage, updatedMeeting);
-
-            // 2. Email (ส่งจริง)
             String meetingUrl = getMeetingUrl(updatedMeeting.getMeetingTypeCode(), updatedMeeting.getId());
-            String adminEmail = "nuntiya.suw@ilustro.co";
+            String emailTitle = "แจ้งนัดหมายการประชุม";
 
-            // HTML Email Template
-            // แก้ไข: ใช้ <div> แทน <p> สำหรับแสดงหัวข้อประชุม เพื่อรองรับ HTML Content จาก
-            // Editor
-            String emailBody = String.format(
+            String adminEmailBody = String.format(
                     "<html>" +
                             "<body style=\"font-family: 'Sarabun', Arial, sans-serif; line-height: 1.6; color: #333;\">"
                             +
                             "<div style=\"max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;\">"
                             +
                             "<div style=\"background-color: #141371; padding: 20px; text-align: center;\">" +
-                            "<h2 style=\"color: #ffffff; margin: 0;\">แจ้งเตือนระบบ ASLES</h2>" +
+                            "<h2 style=\"color: #ffffff; margin: 0;\">แจ้งนัดหมายการประชุม</h2>" +
                             "</div>" +
                             "<div style=\"padding: 30px;\">" +
                             "<h3 style=\"color: #141371; margin-top: 0;\">เรียน ผู้ดูแลระบบ</h3>" +
-                            "<p>ระบบขอแจ้งให้ทราบว่า การบันทึกข้อมูลวาระการประชุมได้ดำเนินการเสร็จสิ้นเรียบร้อยแล้ว โดยมีรายละเอียดดังนี้</p>"
-                            +
+                            "<p>ขอเรียนเชิญท่านเข้าร่วมการประชุม โดยมีรายละเอียดดังนี้</p>" +
 
-                            "<div style=\"background-color: #f9fafb; padding: 20px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #3B82F6;\">"
+                            "<div style=\"background-color: #f9fafb; padding: 20px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #141371;\">"
                             +
                             "<p style=\"margin: 5px 0;\"><b>เลขคำสั่งตรวจสอบ:</b> %s</p>" +
-                            // ใช้ div wrapper เพราะ %s อาจมี tag <p> ติดมา
-                            "<div style=\"margin: 5px 0;\"><b>หัวข้อการประชุม:</b> %s</div>" +
-                            "<p style=\"margin: 5px 0;\"><b>สถานะปัจจุบัน:</b> <span style=\"color: #059669; font-weight: bold;\">รอลงมติการประชุม</span></p>"
-                            +
+                            "<div style=\"margin: 5px 0;\"><b>เรื่อง:</b> %s</div>" +
+                            "<p style=\"margin: 5px 0;\"><b>วันที่:</b> %s</p>" +
+                            "<p style=\"margin: 5px 0;\"><b>เวลา:</b> %s</p>" +
+                            "<p style=\"margin: 5px 0;\"><b>สถานที่:</b> %s</p>" +
                             "</div>" +
 
-                            "<p>ท่านสามารถตรวจสอบข้อมูลและดำเนินการต่อได้ที่ลิงก์ด้านล่าง</p>" +
+                            "<p>กรุณาเข้าร่วมการประชุมตามวัน เวลา และสถานที่ดังกล่าว</p>" +
                             "<div style=\"text-align: center; margin: 30px 0;\">" +
-                            "<a href=\"%s\" style=\"background-color: #3B82F6; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;\">เข้าสู่ระบบเพื่อตรวจสอบ</a>"
+                            "<a href=\"%s\" style=\"background-color: #141371; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;\">ดูรายละเอียดเพิ่มเติม</a>"
                             +
                             "</div>" +
 
@@ -135,6 +113,127 @@ public class MeetingController {
                             "</html>",
                     updatedMeeting.getMeetingNo(),
                     updatedMeeting.getDescription() != null ? updatedMeeting.getDescription() : "-",
+                    updatedMeeting.getMeetingDate(),
+                    updatedMeeting.getMeetingTime(),
+                    updatedMeeting.getLocation() != null ? updatedMeeting.getLocation() : "-",
+                    meetingUrl);
+
+            emailService.sendMeetingNotification("nuntiya.suw@ilustro.co", emailTitle, adminEmailBody);
+
+            // จากนั้นส่งให้ผู้เข้าร่วมประชุมทุกคน
+            for (CommitteeMember attendee : updatedMeeting.getAttendees()) {
+                if (attendee.getEmail() != null && !attendee.getEmail().isEmpty()) {
+                    String attendeeEmailBody = String.format(
+                            "<html>" +
+                                    "<body style=\"font-family: 'Sarabun', Arial, sans-serif; line-height: 1.6; color: #333;\">"
+                                    +
+                                    "<div style=\"max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;\">"
+                                    +
+                                    "<div style=\"background-color: #141371; padding: 20px; text-align: center;\">" +
+                                    "<h2 style=\"color: #ffffff; margin: 0;\">แจ้งนัดหมายการประชุม</h2>" +
+                                    "</div>" +
+                                    "<div style=\"padding: 30px;\">" +
+                                    "<h3 style=\"color: #141371; margin-top: 0;\">เรียน %s</h3>" +
+                                    "<p>ขอเรียนเชิญท่านเข้าร่วมการประชุม โดยมีรายละเอียดดังนี้</p>" +
+
+                                    "<div style=\"background-color: #f9fafb; padding: 20px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #141371;\">"
+                                    +
+                                    "<p style=\"margin: 5px 0;\"><b>เลขคำสั่งตรวจสอบ:</b> %s</p>" +
+                                    "<div style=\"margin: 5px 0;\"><b>เรื่อง:</b> %s</div>" +
+                                    "<p style=\"margin: 5px 0;\"><b>วันที่:</b> %s</p>" +
+                                    "<p style=\"margin: 5px 0;\"><b>เวลา:</b> %s</p>" +
+                                    "<p style=\"margin: 5px 0;\"><b>สถานที่:</b> %s</p>" +
+                                    "</div>" +
+
+                                    "<p>กรุณาเข้าร่วมการประชุมตามวัน เวลา และสถานที่ดังกล่าว</p>" +
+                                    "<div style=\"text-align: center; margin: 30px 0;\">" +
+                                    "<a href=\"%s\" style=\"background-color: #141371; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;\">ดูรายละเอียดเพิ่มเติม</a>"
+                                    +
+                                    "</div>" +
+
+                                    "<hr style=\"border: none; border-top: 1px solid #eee; margin: 30px 0;\" />" +
+                                    "<p style=\"font-size: 0.9em; color: #666;\">ขอแสดงความนับถือ,<br>ทีมงาน ASLES Support</p>"
+                                    +
+                                    "</div>" +
+                                    "<div style=\"background-color: #f3f4f6; padding: 15px; text-align: center; font-size: 0.8em; color: #888;\">"
+                                    +
+                                    "<p style=\"margin: 0;\">อีเมลฉบับนี้เป็นการแจ้งเตือนอัตโนมัติ กรุณาอย่าตอบกลับ</p>"
+                                    +
+                                    "</div>" +
+                                    "</div>" +
+                                    "</body>" +
+                                    "</html>",
+                            attendee.getPrename() != null
+                                    ? attendee.getPrename() + attendee.getFirstname() + " " + attendee.getLastname()
+                                    : attendee.getFirstname() + " " + attendee.getLastname(),
+                            updatedMeeting.getMeetingNo(),
+                            updatedMeeting.getDescription() != null ? updatedMeeting.getDescription() : "-",
+                            updatedMeeting.getMeetingDate(),
+                            updatedMeeting.getMeetingTime(),
+                            updatedMeeting.getLocation() != null ? updatedMeeting.getLocation() : "-",
+                            meetingUrl);
+
+                    emailService.sendMeetingNotification(attendee.getEmail(), emailTitle, attendeeEmailBody);
+                }
+            }
+        }
+
+        if (request.getCurrentStep() != null && request.getCurrentStep() == 5
+                && "ACTIVE".equalsIgnoreCase(updatedMeeting.getStatus())) {
+
+            String title = "บันทึกวาระการประชุมครบ 5 วาระแล้ว";
+            String notifMessage = String.format("การประชุม %s บันทึกวาระครบ 5 วาระแล้ว กดเพื่อตรวจสอบรายละเอียด",
+                    updatedMeeting.getMeetingNo());
+
+            createNotification("NEW_MEETING", title, notifMessage, updatedMeeting);
+
+            String meetingUrl = getMeetingUrl(updatedMeeting.getMeetingTypeCode(), updatedMeeting.getId());
+            String adminEmail = "ictbookingroom@outlook.com";
+
+            String emailBody = String.format(
+                    "<html>" +
+                            "<body style=\"font-family: 'Sarabun', Arial, sans-serif; line-height: 1.6; color: #333;\">"
+                            +
+                            "<div style=\"max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;\">"
+                            +
+                            "<div style=\"background-color: #141371; padding: 20px; text-align: center;\">" +
+                            "<h2 style=\"color: #ffffff; margin: 0;\">แจ้งนัดหมายการประชุม</h2>" +
+                            "</div>" +
+                            "<div style=\"padding: 30px;\">" +
+                            "<h3 style=\"color: #141371; margin-top: 0;\">เรียน ผู้ดูแลระบบ</h3>" +
+                            "<p>ขอเรียนเชิญท่านเข้าร่วมการประชุม โดยมีรายละเอียดดังนี้</p>" +
+
+                            "<div style=\"background-color: #f9fafb; padding: 20px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #141371;\">"
+                            +
+                            "<p style=\"margin: 5px 0;\"><b>เลขคำสั่งตรวจสอบ:</b> %s</p>" +
+                            "<div style=\"margin: 5px 0;\"><b>เรื่อง:</b> %s</div>" +
+                            "<p style=\"margin: 5px 0;\"><b>วันที่:</b> %s</p>" +
+                            "<p style=\"margin: 5px 0;\"><b>เวลา:</b> %s</p>" +
+                            "<p style=\"margin: 5px 0;\"><b>สถานที่:</b> %s</p>" +
+                            "</div>" +
+
+                            "<p>กรุณาเข้าร่วมการประชุมตามวัน เวลา และสถานที่ดังกล่าว</p>" +
+                            "<div style=\"text-align: center; margin: 30px 0;\">" +
+                            "<a href=\"%s\" style=\"background-color: #141371; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;\">ดูรายละเอียดเพิ่มเติม</a>"
+                            +
+                            "</div>" +
+
+                            "<hr style=\"border: none; border-top: 1px solid #eee; margin: 30px 0;\" />" +
+                            "<p style=\"font-size: 0.9em; color: #666;\">ขอแสดงความนับถือ,<br>ทีมงาน ASLES Support</p>"
+                            +
+                            "</div>" +
+                            "<div style=\"background-color: #f3f4f6; padding: 15px; text-align: center; font-size: 0.8em; color: #888;\">"
+                            +
+                            "<p style=\"margin: 0;\">อีเมลฉบับนี้เป็นการแจ้งเตือนอัตโนมัติ กรุณาอย่าตอบกลับ</p>" +
+                            "</div>" +
+                            "</div>" +
+                            "</body>" +
+                            "</html>",
+                    updatedMeeting.getMeetingNo(),
+                    updatedMeeting.getDescription() != null ? updatedMeeting.getDescription() : "-",
+                    updatedMeeting.getMeetingDate(),
+                    updatedMeeting.getMeetingTime(),
+                    updatedMeeting.getLocation() != null ? updatedMeeting.getLocation() : "-",
                     meetingUrl);
 
             emailService.sendMeetingNotification(adminEmail, title, emailBody);
@@ -163,23 +262,23 @@ public class MeetingController {
         try {
             Meeting updated = meetingService.updateMeetingResolutions(id, request);
 
-            if ("PUBLISH".equalsIgnoreCase(updated.getStatus())) {
+            // ส่งอีเมลและแจ้งเตือนเฉพาะเมื่ออยู่ step 2 และสถานะเป็น PUBLISH
+            if ("PUBLISH".equalsIgnoreCase(updated.getStatus())
+                    && request.getCurrentStep() != null && request.getCurrentStep() == 2) {
+
                 String title = "สรุปผลการประชุมเรียบร้อยแล้ว";
-                // ข้อความ Notification (DB) จะเก็บ String ที่มี HTML Tag ปนอยู่ด้วย
                 String message = String.format("เรื่อง %s (รหัส %s) ได้รับการลงมติและสรุปผลแล้ว",
-                        updated.getDescription(),
+                        updated.getDescription() != null ? updated.getDescription() : "ไม่ระบุ",
                         updated.getMeetingNo());
 
                 // 1. Notification
                 createNotification("STATUS_CHANGE", title, message, updated);
 
-                // 2. Email
+                // 2. ส่งอีเมลให้ผู้เกี่ยวข้องและผู้ดูแลระบบ
                 String meetingUrl = getMeetingUrl(updated.getMeetingTypeCode(), updated.getId());
-                String targetEmail = "nuntiya.suw@ilustro.co";
 
-                // HTML Email Template
-                // แก้ไข: ใช้ <div> แทน <p> สำหรับแสดงหัวข้อเรื่อง
-                String emailBody = String.format(
+                // อีเมลสำหรับผู้เกี่ยวข้อง
+                String emailBodyForStaff = String.format(
                         "<html>" +
                                 "<body style=\"font-family: 'Sarabun', Arial, sans-serif; line-height: 1.6; color: #333;\">"
                                 +
@@ -195,9 +294,10 @@ public class MeetingController {
                                 "<div style=\"background-color: #f9fafb; padding: 20px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #059669;\">"
                                 +
                                 "<p style=\"margin: 5px 0;\"><b>เลขคำสั่งตรวจสอบ:</b> %s</p>" +
-                                // ใช้ div wrapper เพื่อรองรับ HTML Content
                                 "<div style=\"margin: 5px 0;\"><b>หัวข้อเรื่อง:</b> %s</div>" +
                                 "<p style=\"margin: 5px 0;\"><b>วันที่ประชุม:</b> %s</p>" +
+                                "<p style=\"margin: 5px 0;\"><b>เวลา:</b> %s</p>" +
+                                "<p style=\"margin: 5px 0;\"><b>สถานที่:</b> %s</p>" +
                                 "<p style=\"margin: 5px 0;\"><b>สถานะ:</b> <span style=\"color: #059669; font-weight: bold;\">สรุปผลการประชุมและลงมติเรียบร้อยแล้ว</span></p>"
                                 +
                                 "</div>" +
@@ -209,7 +309,8 @@ public class MeetingController {
                                 "</div>" +
 
                                 "<hr style=\"border: none; border-top: 1px solid #eee; margin: 30px 0;\" />" +
-                                "<p style=\"font-size: 0.9em; color: #666;\">ขอบคุณครับ,<br>ทีมงาน ASLES Support</p>" +
+                                "<p style=\"font-size: 0.9em; color: #666;\">ขอแสดงความนับถือ,<br>ทีมงาน ASLES Support</p>"
+                                +
                                 "</div>" +
                                 "<div style=\"background-color: #f3f4f6; padding: 15px; text-align: center; font-size: 0.8em; color: #888;\">"
                                 +
@@ -220,10 +321,65 @@ public class MeetingController {
                                 "</html>",
                         updated.getMeetingNo(),
                         updated.getDescription() != null ? updated.getDescription() : "-",
-                        updated.getMeetingDate(),
+                        updated.getMeetingDate() != null ? updated.getMeetingDate().toString() : "-",
+                        updated.getMeetingTime() != null ? updated.getMeetingTime() : "-",
+                        updated.getLocation() != null ? updated.getLocation() : "-",
                         meetingUrl);
 
-                emailService.sendMeetingNotification(targetEmail, title, emailBody);
+                // อีเมลสำหรับผู้ดูแลระบบ
+                String emailBodyForAdmin = String.format(
+                        "<html>" +
+                                "<body style=\"font-family: 'Sarabun', Arial, sans-serif; line-height: 1.6; color: #333;\">"
+                                +
+                                "<div style=\"max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;\">"
+                                +
+                                "<div style=\"background-color: #059669; padding: 20px; text-align: center;\">" +
+                                "<h2 style=\"color: #ffffff; margin: 0;\">สรุปผลการประชุมเรียบร้อย</h2>" +
+                                "</div>" +
+                                "<div style=\"padding: 30px;\">" +
+                                "<h3 style=\"color: #059669; margin-top: 0;\">เรียน ผู้ดูแลระบบ</h3>" +
+                                "<p>การประชุมดังต่อไปนี้ ได้รับการลงมติและสรุปผลการประชุมเป็นที่เรียบร้อยแล้ว</p>" +
+
+                                "<div style=\"background-color: #f9fafb; padding: 20px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #059669;\">"
+                                +
+                                "<p style=\"margin: 5px 0;\"><b>เลขคำสั่งตรวจสอบ:</b> %s</p>" +
+                                "<div style=\"margin: 5px 0;\"><b>หัวข้อเรื่อง:</b> %s</div>" +
+                                "<p style=\"margin: 5px 0;\"><b>วันที่ประชุม:</b> %s</p>" +
+                                "<p style=\"margin: 5px 0;\"><b>เวลา:</b> %s</p>" +
+                                "<p style=\"margin: 5px 0;\"><b>สถานที่:</b> %s</p>" +
+                                "<p style=\"margin: 5px 0;\"><b>สถานะ:</b> <span style=\"color: #059669; font-weight: bold;\">สรุปผลการประชุมและลงมติเรียบร้อยแล้ว</span></p>"
+                                +
+                                "</div>" +
+
+                                "<p>ท่านสามารถดูรายละเอียดผลการประชุมได้ที่</p>" +
+                                "<div style=\"text-align: center; margin: 30px 0;\">" +
+                                "<a href=\"%s\" style=\"background-color: #059669; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;\">ดูรายละเอียด</a>"
+                                +
+                                "</div>" +
+
+                                "<hr style=\"border: none; border-top: 1px solid #eee; margin: 30px 0;\" />" +
+                                "<p style=\"font-size: 0.9em; color: #666;\">ขอแสดงความนับถือ,<br>ทีมงาน ASLES Support</p>"
+                                +
+                                "</div>" +
+                                "<div style=\"background-color: #f3f4f6; padding: 15px; text-align: center; font-size: 0.8em; color: #888;\">"
+                                +
+                                "<p style=\"margin: 0;\">อีเมลฉบับนี้เป็นการแจ้งเตือนอัตโนมัติ กรุณาอย่าตอบกลับ</p>" +
+                                "</div>" +
+                                "</div>" +
+                                "</body>" +
+                                "</html>",
+                        updated.getMeetingNo(),
+                        updated.getDescription() != null ? updated.getDescription() : "-",
+                        updated.getMeetingDate() != null ? updated.getMeetingDate().toString() : "-",
+                        updated.getMeetingTime() != null ? updated.getMeetingTime() : "-",
+                        updated.getLocation() != null ? updated.getLocation() : "-",
+                        meetingUrl);
+
+                // ส่งอีเมลให้ผู้เกี่ยวข้อง
+                emailService.sendMeetingNotification("nuntiya.suw@ilustro.co", title, emailBodyForStaff);
+
+                // ส่งอีเมลให้ผู้ดูแลระบบ
+                emailService.sendMeetingNotification("ictbookingroom@outlook.com", title, emailBodyForAdmin);
             }
 
             return ResponseEntity.ok(updated);
