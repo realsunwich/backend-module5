@@ -2,6 +2,8 @@ package com.example.demo.entity;
 
 import jakarta.persistence.*;
 import lombok.Data; // ใช้ Lombok ลด code getter/setter
+
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -16,6 +18,9 @@ public class CommitteeMember {
     @Column(name = "citizen_id", nullable = false)
     private String citizenId;
 
+    @Column(name = "laser_id")
+    private String laserId;
+
     @Column(name = "prename")
     private String prename;
 
@@ -27,6 +32,21 @@ public class CommitteeMember {
 
     @Column(name = "lastname", nullable = false)
     private String lastname;
+
+    @Column(name = "prename_en")
+    private String prenameEn;
+
+    @Column(name = "firstname_en")
+    private String firstnameEn;
+
+    @Column(name = "middlename_en")
+    private String middlenameEn;
+
+    @Column(name = "lastname_en")
+    private String lastnameEn;
+
+    @Column(name = "birthdate")
+    private LocalDate birthdate;
 
     @Column(name = "affiliation")
     private String affiliation;
