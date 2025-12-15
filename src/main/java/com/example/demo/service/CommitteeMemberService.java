@@ -49,6 +49,11 @@ public class CommitteeMemberService {
 
             // --- ข้อมูลส่วนตัว ---
             existing.setBirthdate(updated.getBirthdate()); // เพิ่มวันเกิด
+            existing.setNationality(updated.getNationality()); // เพิ่มสัญชาติ
+
+            // --- ข้อมูลเอกสาร ---
+            existing.setDocumentType(updated.getDocumentType()); // ประเภทเอกสาร
+            existing.setDocumentExpiryDate(updated.getDocumentExpiryDate()); // วันหมดอายุเอกสาร
 
             // --- ข้อมูลการทำงาน/ติดต่อ ---
             existing.setAffiliation(updated.getAffiliation());

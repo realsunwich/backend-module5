@@ -21,6 +21,15 @@ public class CommitteeMember {
     @Column(name = "laser_id")
     private String laserId;
 
+    @Column(name = "document_type", length = 20)
+    private String documentType = "thai-id"; // 'thai-id', 'passport', 'pink-card'
+
+    @Column(name = "nationality", length = 100)
+    private String nationality;
+
+    @Column(name = "document_expiry_date")
+    private LocalDate documentExpiryDate;
+
     @Column(name = "prename")
     private String prename;
 
