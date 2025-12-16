@@ -89,6 +89,13 @@ public class MeetingService {
         Meeting meeting = meetingRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Meeting not found with id: " + id));
 
+        if (request.getPdfConfig() != null) {
+            meeting.setPdfConfig(request.getPdfConfig());
+        }
+        if (request.getAgendaFourData() != null) {
+            meeting.setAgendaFourData(request.getAgendaFourData());
+        }
+
         meeting.setMeetingTypeCode(request.getMeetingTypeCode());
         meeting.setMeetingDate(request.getMeetingDate());
         meeting.setMeetingTime(request.getMeetingTime());

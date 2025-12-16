@@ -65,6 +65,9 @@ public class Meeting {
     @Column(name = "resolution_5_data", columnDefinition = "LONGTEXT")
     private String resolutionFiveData;
 
+    @Column(columnDefinition = "TEXT")
+    private String pdfConfig;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();

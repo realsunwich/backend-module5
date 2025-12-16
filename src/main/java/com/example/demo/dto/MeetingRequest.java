@@ -53,6 +53,8 @@ public class MeetingRequest {
     private String resolutionFourData;
     private String resolutionFiveData;
 
+    private String pdfConfig;
+
     private List<Map<String, Object>> attendees;
 
 }
