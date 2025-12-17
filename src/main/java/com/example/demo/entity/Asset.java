@@ -57,6 +57,9 @@ public class Asset {
     @Column(name = "value_unit", length = 50)
     private String valueUnit; // หน่วยเงิน เช่น "บาท", "USD", "ล้านบาท"
 
+    @Column(name = "bank_details", length = 5000)
+    private String bankDetails; // ข้อมูลบัญชีธนาคาร (เก็บเป็น JSON array)
+
     // เพิ่มฟีลด์ timestamp
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
@@ -68,8 +71,8 @@ public class Asset {
 
     // Enum สำหรับสถานะ
     public enum AssetStatus {
-        PENDING,      // รอตรวจสอบ
-        CONFIRMED,    // พบแล้ว
-        CHECKED_IN    // เช็คอินแล้ว
+        PENDING, // รอตรวจสอบ
+        CONFIRMED, // พบแล้ว
+        CHECKED_IN // เช็คอินแล้ว
     }
 }

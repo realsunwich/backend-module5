@@ -10,7 +10,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -89,35 +88,51 @@ public class MeetingService {
         Meeting meeting = meetingRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Meeting not found with id: " + id));
 
+        // 1. กลุ่มตั้งค่า PDF
         if (request.getPdfConfig() != null) {
             meeting.setPdfConfig(request.getPdfConfig());
         }
-        if (request.getAgendaFourData() != null) {
+
+        // 2. กลุ่มข้อมูลทั่วไป (เช็ค null ทุกตัว เพื่อไม่ให้ของเดิมหาย)
+        if (request.getMeetingTypeCode() != null)
+            meeting.setMeetingTypeCode(request.getMeetingTypeCode());
+        if (request.getMeetingDate() != null)
+            meeting.setMeetingDate(request.getMeetingDate());
+        if (request.getMeetingTime() != null)
+            meeting.setMeetingTime(request.getMeetingTime());
+        if (request.getLocation() != null)
+            meeting.setLocation(request.getLocation());
+        if (request.getDescription() != null)
+            meeting.setDescription(request.getDescription());
+        if (request.getStatus() != null)
+            meeting.setStatus(request.getStatus());
+
+        // 3. กลุ่มวาระการประชุม (Agenda Data)
+        if (request.getAgendaOneData() != null)
+            meeting.setAgendaOneData(request.getAgendaOneData());
+        if (request.getAgendaTwoData() != null)
+            meeting.setAgendaTwoData(request.getAgendaTwoData());
+        if (request.getAgendaThreeData() != null)
+            meeting.setAgendaThreeData(request.getAgendaThreeData());
+        if (request.getAgendaFourData() != null)
             meeting.setAgendaFourData(request.getAgendaFourData());
-        }
+        if (request.getAgendaFiveData() != null)
+            meeting.setAgendaFiveData(request.getAgendaFiveData());
 
-        meeting.setMeetingTypeCode(request.getMeetingTypeCode());
-        meeting.setMeetingDate(request.getMeetingDate());
-        meeting.setMeetingTime(request.getMeetingTime());
-        meeting.setLocation(request.getLocation());
-        meeting.setDescription(request.getDescription());
-        meeting.setStatus(request.getStatus());
+        // 4. กลุ่มมติ (Resolution)
+        if (request.getResolutionDetail() != null)
+            meeting.setResolutionDetail(request.getResolutionDetail());
+        if (request.getResolutionFourData() != null)
+            meeting.setResolutionFourData(request.getResolutionFourData());
+        if (request.getResolutionFiveData() != null)
+            meeting.setResolutionFiveData(request.getResolutionFiveData());
 
-        meeting.setAgendaOneData(request.getAgendaOneData());
-        meeting.setAgendaTwoData(request.getAgendaTwoData());
-        meeting.setAgendaThreeData(request.getAgendaThreeData());
-        meeting.setAgendaFourData(request.getAgendaFourData());
-        meeting.setAgendaFiveData(request.getAgendaFiveData());
-
-        meeting.setResolutionDetail(request.getResolutionDetail());
-        meeting.setResolutionFourData(request.getResolutionFourData());
-        meeting.setResolutionFiveData(request.getResolutionFiveData());
-
+        // 5. กลุ่มผู้เข้าร่วม (Attendees)
+        // Logic นี้สำคัญ: ถ้าส่ง null มา = ไม่ทำอะไร, ถ้าส่ง [] มา = ลบหมด, ถ้าส่ง ids
+        // มา = อัปเดตใหม่
         if (request.getMemberIds() != null) {
             List<CommitteeMember> attendees = memberRepository.findAllById(request.getMemberIds());
             meeting.setAttendees(attendees);
-        } else {
-            meeting.setAttendees(new ArrayList<>());
         }
 
         return meetingRepository.save(meeting);

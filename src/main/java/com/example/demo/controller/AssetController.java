@@ -78,6 +78,11 @@ public class AssetController {
             asset.setValueUnit(assetDetails.getValueUnit());
         }
 
+        // อัพเดทข้อมูลบัญชีธนาคาร
+        if (assetDetails.getBankDetails() != null) {
+            asset.setBankDetails(assetDetails.getBankDetails());
+        }
+
         return assetRepository.save(asset);
     }
 
