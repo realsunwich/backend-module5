@@ -57,7 +57,7 @@ public class Asset {
     @Column(name = "value_unit", length = 50)
     private String valueUnit; // หน่วยเงิน เช่น "บาท", "USD", "ล้านบาท"
 
-    @Column(name = "bank_details", length = 5000)
+    @Column(name = "bank_details", columnDefinition = "TEXT")
     private String bankDetails; // ข้อมูลบัญชีธนาคาร (เก็บเป็น JSON array)
 
     // เพิ่มฟีลด์ timestamp

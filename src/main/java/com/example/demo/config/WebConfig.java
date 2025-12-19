@@ -1,6 +1,8 @@
 package com.example.demo.config;
 
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -11,5 +13,10 @@ public class WebConfig implements WebMvcConfigurer {
         // Map URL "/uploads/**" ให้ไปอ่านไฟล์จริงที่โฟลเดอร์ "uploads/" ใน root project
         registry.addResourceHandler("/uploads/**")
                 .addResourceLocations("file:uploads/");
+    }
+
+    @Bean
+    public WebClient.Builder webClientBuilder() {
+        return WebClient.builder();
     }
 }

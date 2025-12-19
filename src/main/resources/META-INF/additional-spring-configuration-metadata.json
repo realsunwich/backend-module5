@@ -1,0 +1,15 @@
+{
+  "properties": [
+    {
+      "name": "typhoon.api.key",
+      "type": "java.lang.String",
+      "description": "API key for Typhoon AI service authentication"
+    },
+    {
+      "name": "typhoon.model.name",
+      "type": "java.lang.String",
+      "description": "Typhoon AI model name to use for vision/chat completions",
+      "defaultValue": "typhoon-v1.5-vision"
+    }
+  ]
+}
