@@ -795,29 +795,58 @@ public class MeetingController {
             meetingService.updateSnacksResponse(meetingId, memberId, accept);
 
             String message = accept
-                    ? "✅ ยอมรับของว่างเรียบร้อย ขอบคุณครับ/ค่ะ"
-                    : "❌ ปฏิเสธของว่างเรียบร้อย ขอบคุณครับ/ค่ะ";
+                    ? "ยอมรับของว่างเรียบร้อย"
+                    : "ปฏิเสธของว่างเรียบร้อย";
 
-            // String bgColor = accept ? "#d1fae5" : "#fee2e2";
-            String textColor = accept ? "#065f46" : "#991b1b";
+            String statusBadgeBg = accept ? "#D1FAE5" : "#fee2e2";
+            String statusBadgeText = accept ? "#059669" : "#991b1b";
+            String statusText = accept ? "ยอมรับแล้ว" : "ปฏิเสธแล้ว";
             String icon = accept ? "✅" : "❌";
+            String cardBorder = accept ? "4px solid #059669" : "4px solid #dc2626";
 
-            // Return HTML page
+            // Return HTML page with Material-UI inspired design
             String htmlResponse = String.format(
-                    "<html>" +
-                            "<head><meta charset=\"UTF-8\"></head>" +
-                            "<body style=\"font-family: 'Sarabun', Arial, sans-serif; text-align: center; padding: 50px; background-color: #f9fafb;\">"
-                            +
-                            "<div style=\"max-width: 500px; margin: 0 auto; background-color: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);\">"
-                            +
-                            "<div style=\"font-size: 64px; margin-bottom: 20px;\">%s</div>" +
-                            "<h2 style=\"color: %s; margin: 20px 0;\">%s</h2>" +
-                            "<p style=\"color: #6b7280; font-size: 16px;\">คุณสามารถปิดหน้านี้ได้แล้ว</p>" +
+                    "<!DOCTYPE html>" +
+                            "<html lang=\"th\">" +
+                            "<head>" +
+                            "<meta charset=\"UTF-8\">" +
+                            "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">" +
+                            "<link href=\"https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap\" rel=\"stylesheet\">" +
+                            "<title>ตอบรับของว่าง</title>" +
+                            "<style>" +
+                            "* { margin: 0; padding: 0; box-sizing: border-box; }" +
+                            "body { font-family: 'Sarabun', Arial, sans-serif; background: linear-gradient(135deg, #f5f7fa 0%%, #c3cfe2 100%%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }" +
+                            ".container { max-width: 500px; width: 100%%; }" +
+                            ".card { background: white; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); padding: 48px 40px; text-align: center; border-top: %s; transition: transform 0.3s ease, box-shadow 0.3s ease; }" +
+                            ".card:hover { transform: translateY(-4px); box-shadow: 0 20px 60px rgba(0,0,0,0.15); }" +
+                            ".icon-wrapper { width: 96px; height: 96px; margin: 0 auto 24px; background: %s; border-radius: 50%%; display: flex; align-items: center; justify-content: center; font-size: 48px; animation: scaleIn 0.5s ease; }" +
+                            "@keyframes scaleIn { from { transform: scale(0); } to { transform: scale(1); } }" +
+                            ".status-badge { display: inline-block; padding: 8px 20px; background: %s; color: %s; border-radius: 20px; font-size: 14px; font-weight: 600; margin-bottom: 16px; }" +
+                            "h1 { font-size: 28px; font-weight: 700; color: #1f2937; margin-bottom: 12px; line-height: 1.3; }" +
+                            ".subtitle { font-size: 16px; color: #6b7280; margin-bottom: 32px; font-weight: 400; }" +
+                            ".divider { height: 1px; background: linear-gradient(to right, transparent, #e5e7eb, transparent); margin: 24px 0; }" +
+                            ".info-text { font-size: 15px; color: #9ca3af; font-weight: 300; }" +
+                            "</style>" +
+                            "</head>" +
+                            "<body>" +
+                            "<div class=\"container\">" +
+                            "<div class=\"card\">" +
+                            "<div class=\"icon-wrapper\">%s</div>" +
+                            "<div class=\"status-badge\">%s</div>" +
+                            "<h1>%s</h1>" +
+                            "<p class=\"subtitle\">ขอบคุณสำหรับการตอบรับครับ/ค่ะ</p>" +
+                            "<div class=\"divider\"></div>" +
+                            "<p class=\"info-text\">คุณสามารถปิดหน้าต่างนี้ได้แล้ว</p>" +
+                            "</div>" +
                             "</div>" +
                             "</body>" +
                             "</html>",
+                    cardBorder,
+                    statusBadgeBg,
+                    statusBadgeBg,
+                    statusBadgeText,
                     icon,
-                    textColor,
+                    statusText,
                     message);
 
             return ResponseEntity.ok()
@@ -826,15 +855,38 @@ public class MeetingController {
 
         } catch (Exception e) {
             String errorHtml = String.format(
-                    "<html>" +
-                            "<head><meta charset=\"UTF-8\"></head>" +
-                            "<body style=\"font-family: 'Sarabun', Arial, sans-serif; text-align: center; padding: 50px; background-color: #f9fafb;\">"
-                            +
-                            "<div style=\"max-width: 500px; margin: 0 auto; background-color: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);\">"
-                            +
-                            "<div style=\"font-size: 64px; margin-bottom: 20px;\">⚠️</div>" +
-                            "<h2 style=\"color: #dc2626; margin: 20px 0;\">เกิดข้อผิดพลาด</h2>" +
-                            "<p style=\"color: #6b7280; font-size: 16px;\">%s</p>" +
+                    "<!DOCTYPE html>" +
+                            "<html lang=\"th\">" +
+                            "<head>" +
+                            "<meta charset=\"UTF-8\">" +
+                            "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">" +
+                            "<link href=\"https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap\" rel=\"stylesheet\">" +
+                            "<title>เกิดข้อผิดพลาด</title>" +
+                            "<style>" +
+                            "* { margin: 0; padding: 0; box-sizing: border-box; }" +
+                            "body { font-family: 'Sarabun', Arial, sans-serif; background: linear-gradient(135deg, #f5f7fa 0%%, #c3cfe2 100%%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }" +
+                            ".container { max-width: 500px; width: 100%%; }" +
+                            ".card { background: white; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); padding: 48px 40px; text-align: center; border-top: 4px solid #dc2626; transition: transform 0.3s ease, box-shadow 0.3s ease; }" +
+                            ".card:hover { transform: translateY(-4px); box-shadow: 0 20px 60px rgba(0,0,0,0.15); }" +
+                            ".icon-wrapper { width: 96px; height: 96px; margin: 0 auto 24px; background: #fee2e2; border-radius: 50%%; display: flex; align-items: center; justify-content: center; font-size: 48px; animation: shake 0.5s ease; }" +
+                            "@keyframes shake { 0%%, 100%% { transform: translateX(0); } 25%% { transform: translateX(-10px); } 75%% { transform: translateX(10px); } }" +
+                            ".status-badge { display: inline-block; padding: 8px 20px; background: #fee2e2; color: #991b1b; border-radius: 20px; font-size: 14px; font-weight: 600; margin-bottom: 16px; }" +
+                            "h1 { font-size: 28px; font-weight: 700; color: #1f2937; margin-bottom: 12px; line-height: 1.3; }" +
+                            ".error-message { font-size: 15px; color: #6b7280; margin-bottom: 32px; padding: 16px; background: #fef2f2; border-radius: 8px; border-left: 3px solid #dc2626; }" +
+                            ".divider { height: 1px; background: linear-gradient(to right, transparent, #e5e7eb, transparent); margin: 24px 0; }" +
+                            ".info-text { font-size: 15px; color: #9ca3af; font-weight: 300; }" +
+                            "</style>" +
+                            "</head>" +
+                            "<body>" +
+                            "<div class=\"container\">" +
+                            "<div class=\"card\">" +
+                            "<div class=\"icon-wrapper\">⚠️</div>" +
+                            "<div class=\"status-badge\">เกิดข้อผิดพลาด</div>" +
+                            "<h1>ไม่สามารถบันทึกข้อมูลได้</h1>" +
+                            "<div class=\"error-message\">%s</div>" +
+                            "<div class=\"divider\"></div>" +
+                            "<p class=\"info-text\">กรุณาติดต่อผู้ดูแลระบบหรือลองใหม่อีกครั้ง</p>" +
+                            "</div>" +
                             "</div>" +
                             "</body>" +
                             "</html>",
