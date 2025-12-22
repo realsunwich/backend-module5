@@ -90,6 +90,10 @@ public class MeetingController {
             // สร้างไฟล์ .ics สำหรับ Calendar Invite
             String icsContent = generateIcsContent(updatedMeeting);
 
+            // ดึงไฟล์แนบทั้งหมดจากวาระการประชุม
+            java.util.List<java.util.Map<String, String>> attachedFiles = extractAllAttachedFiles(updatedMeeting);
+            String attachedFilesHtml = generateAttachedFilesHtml(attachedFiles);
+
             String adminEmailBody = String.format(
                     "<html>" +
                             "<body style=\"font-family: 'Sarabun', Arial, sans-serif; line-height: 1.6; color: #333;\">"
@@ -110,6 +114,7 @@ public class MeetingController {
                             "<p style=\"margin: 5px 0;\"><b>วันที่:</b> %s</p>" +
                             "<p style=\"margin: 5px 0;\"><b>เวลา:</b> %s</p>" +
                             "<p style=\"margin: 5px 0;\"><b>สถานที่:</b> %s</p>" +
+                            "%s" + // เพิ่มส่วนแสดงไฟล์แนบ
                             "</div>" +
 
                             "<p>กรุณาเข้าร่วมการประชุมตามวัน เวลา และสถานที่ดังกล่าว</p>" +
@@ -134,6 +139,7 @@ public class MeetingController {
                     updatedMeeting.getMeetingDate(),
                     updatedMeeting.getMeetingTime(),
                     updatedMeeting.getLocation() != null ? updatedMeeting.getLocation() : "-",
+                    attachedFilesHtml, // เพิ่มพารามิเตอร์ไฟล์แนบ
                     meetingUrl);
 
             // ส่ง Calendar Invite ให้ผู้ดูแลระบบ
@@ -175,6 +181,7 @@ public class MeetingController {
                                     "<p style=\"margin: 5px 0;\"><b>วันที่:</b> %s</p>" +
                                     "<p style=\"margin: 5px 0;\"><b>เวลา:</b> %s</p>" +
                                     "<p style=\"margin: 5px 0;\"><b>สถานที่:</b> %s</p>" +
+                                    "%s" + // เพิ่มส่วนแสดงไฟล์แนบ
                                     "</div>" +
 
                                     "<p>กรุณาเข้าร่วมการประชุมตามวัน เวลา และสถานที่ดังกล่าว</p>" +
@@ -201,6 +208,7 @@ public class MeetingController {
                             updatedMeeting.getMeetingDate(),
                             updatedMeeting.getMeetingTime(),
                             updatedMeeting.getLocation() != null ? updatedMeeting.getLocation() : "-",
+                            attachedFilesHtml, // เพิ่มพารามิเตอร์ไฟล์แนบ
                             meetingUrl);
 
                     // ส่ง Calendar Invite แทน sendMeetingNotification
@@ -220,6 +228,10 @@ public class MeetingController {
 
             String meetingUrl = getMeetingUrl(updatedMeeting.getMeetingTypeCode(), updatedMeeting.getId());
             String adminEmail = "ictbookingroom@outlook.com";
+
+            // ดึงไฟล์แนบสำหรับอีเมลนี้ด้วย
+            java.util.List<java.util.Map<String, String>> attachedFilesForAdmin = extractAllAttachedFiles(updatedMeeting);
+            String attachedFilesHtmlForAdmin = generateAttachedFilesHtml(attachedFilesForAdmin);
 
             String emailBody = String.format(
                     "<html>" +
@@ -241,6 +253,7 @@ public class MeetingController {
                             "<p style=\"margin: 5px 0;\"><b>วันที่:</b> %s</p>" +
                             "<p style=\"margin: 5px 0;\"><b>เวลา:</b> %s</p>" +
                             "<p style=\"margin: 5px 0;\"><b>สถานที่:</b> %s</p>" +
+                            "%s" + // เพิ่มส่วนแสดงไฟล์แนบ
                             "</div>" +
 
                             "<p>กรุณาเข้าร่วมการประชุมตามวัน เวลา และสถานที่ดังกล่าว</p>" +
@@ -265,6 +278,7 @@ public class MeetingController {
                     updatedMeeting.getMeetingDate(),
                     updatedMeeting.getMeetingTime(),
                     updatedMeeting.getLocation() != null ? updatedMeeting.getLocation() : "-",
+                    attachedFilesHtmlForAdmin, // เพิ่มพารามิเตอร์ไฟล์แนบ
                     meetingUrl);
             emailService.sendMeetingNotification(adminEmail, title, emailBody);
         }
@@ -306,6 +320,10 @@ public class MeetingController {
                 // 2. ส่งอีเมลให้ผู้เกี่ยวข้องและผู้ดูแลระบบ
                 String meetingUrl = getMeetingUrl(updated.getMeetingTypeCode(), updated.getId());
 
+                // ดึงไฟล์แนบจาก resolutionDetail สำหรับอีเมลสรุปผล
+                java.util.List<java.util.Map<String, String>> attachedFilesResolution = extractResolutionAttachedFiles(updated);
+                String attachedFilesHtmlResolution = generateResolutionFilesHtml(attachedFilesResolution);
+
                 // อีเมลสำหรับผู้เกี่ยวข้อง
                 String emailBodyForStaff = String.format(
                         "<html>" +
@@ -327,6 +345,7 @@ public class MeetingController {
                                 "<p style=\"margin: 5px 0;\"><b>วันที่ประชุม:</b> %s</p>" +
                                 "<p style=\"margin: 5px 0;\"><b>เวลา:</b> %s</p>" +
                                 "<p style=\"margin: 5px 0;\"><b>สถานที่:</b> %s</p>" +
+                                "%s" + // เพิ่มส่วนแสดงไฟล์แนบ
                                 "<p style=\"margin: 5px 0;\"><b>สถานะ:</b> <span style=\"color: #059669; font-weight: bold;\">สรุปผลการประชุมและลงมติเรียบร้อยแล้ว</span></p>"
                                 +
                                 "</div>" +
@@ -353,6 +372,7 @@ public class MeetingController {
                         updated.getMeetingDate() != null ? updated.getMeetingDate().toString() : "-",
                         updated.getMeetingTime() != null ? updated.getMeetingTime() : "-",
                         updated.getLocation() != null ? updated.getLocation() : "-",
+                        attachedFilesHtmlResolution, // เพิ่มพารามิเตอร์ไฟล์แนบ
                         meetingUrl);
 
                 // อีเมลสำหรับผู้ดูแลระบบ
@@ -376,6 +396,7 @@ public class MeetingController {
                                 "<p style=\"margin: 5px 0;\"><b>วันที่ประชุม:</b> %s</p>" +
                                 "<p style=\"margin: 5px 0;\"><b>เวลา:</b> %s</p>" +
                                 "<p style=\"margin: 5px 0;\"><b>สถานที่:</b> %s</p>" +
+                                "%s" + // เพิ่มส่วนแสดงไฟล์แนบ
                                 "<p style=\"margin: 5px 0;\"><b>สถานะ:</b> <span style=\"color: #059669; font-weight: bold;\">สรุปผลการประชุมและลงมติเรียบร้อยแล้ว</span></p>"
                                 +
                                 "</div>" +
@@ -402,6 +423,7 @@ public class MeetingController {
                         updated.getMeetingDate() != null ? updated.getMeetingDate().toString() : "-",
                         updated.getMeetingTime() != null ? updated.getMeetingTime() : "-",
                         updated.getLocation() != null ? updated.getLocation() : "-",
+                        attachedFilesHtmlResolution, // เพิ่มพารามิเตอร์ไฟล์แนบ
                         meetingUrl);
 
                 // ส่งอีเมลให้ผู้เกี่ยวข้อง
@@ -451,7 +473,7 @@ public class MeetingController {
         sb.append("BEGIN:VCALENDAR\n");
         sb.append("VERSION:2.0\n");
         sb.append("PRODID:-//ICT Booking Room//Meeting System//EN\n");
-        sb.append("METHOD:REQUEST\n"); // สำคัญ: REQUEST ทำให้เป็น Invite ที่กดตอบรับได้
+        sb.append("METHOD:PUBLISH\n"); // เปลี่ยนเป็น PUBLISH เพื่อให้อีเมลไม่หายหลัง Add to Calendar
         sb.append("BEGIN:VEVENT\n");
         sb.append("UID:").append(uid).append("\n");
         sb.append("DTSTAMP:").append(dtStamp).append("\n");
@@ -462,13 +484,13 @@ public class MeetingController {
         sb.append("LOCATION:").append(location).append("\n");
         sb.append("ORGANIZER;CN=ICT Booking Admin:mailto:ictbookingroom@gmail.com\n");
 
-        // เพิ่ม ATTENDEE สำหรับผู้เข้าร่วม
+        // เพิ่ม ATTENDEE สำหรับผู้เข้าร่วม (ไม่ต้อง RSVP เพราะเป็น PUBLISH)
         if (meeting.getAttendees() != null) {
             for (CommitteeMember attendee : meeting.getAttendees()) {
                 if (attendee.getEmail() != null && !attendee.getEmail().isEmpty()) {
                     String attendeeName = (attendee.getPrename() != null ? attendee.getPrename() : "")
                             + attendee.getFirstname() + " " + attendee.getLastname();
-                    sb.append("ATTENDEE;RSVP=TRUE;CN=").append(escapeIcsText(attendeeName))
+                    sb.append("ATTENDEE;CN=").append(escapeIcsText(attendeeName))
                             .append(":mailto:").append(attendee.getEmail()).append("\n");
                 }
             }
@@ -476,6 +498,7 @@ public class MeetingController {
 
         sb.append("STATUS:CONFIRMED\n");
         sb.append("SEQUENCE:0\n");
+        sb.append("CLASS:PUBLIC\n"); // เพิ่ม CLASS:PUBLIC เพื่อระบุว่าเป็น public event
         sb.append("END:VEVENT\n");
         sb.append("END:VCALENDAR");
 
@@ -518,5 +541,199 @@ public class MeetingController {
         // ใช้ Regex นี้: <[^>]*> แปลว่า "หาเครื่องหมาย < ตามด้วยอะไรก็ได้ที่ไม่ใช่ >
         // แล้วปิดด้วย >"
         return html.replaceAll("<[^>]*>", "").trim();
+    }
+
+    // --- Helper 5: ดึงไฟล์แนบทั้งหมดจาก Agenda ---
+    private java.util.List<java.util.Map<String, String>> extractAllAttachedFiles(Meeting meeting) {
+        java.util.List<java.util.Map<String, String>> allFiles = new java.util.ArrayList<>();
+
+        // ตรวจสอบแต่ละวาระ (1-5)
+        String[] agendaFields = {
+            meeting.getAgendaOneData(),
+            meeting.getAgendaTwoData(),
+            meeting.getAgendaThreeData(),
+            meeting.getAgendaFourData(),
+            meeting.getAgendaFiveData()
+        };
+
+        for (int i = 0; i < agendaFields.length; i++) {
+            String agendaData = agendaFields[i];
+            if (agendaData == null || agendaData.isEmpty()) continue;
+
+            try {
+                // Parse JSON
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(agendaData);
+
+                // ดึง attachedFiles array
+                if (root.has("attachedFiles")) {
+                    com.fasterxml.jackson.databind.JsonNode filesNode = root.get("attachedFiles");
+                    if (filesNode.isArray()) {
+                        for (com.fasterxml.jackson.databind.JsonNode fileNode : filesNode) {
+                            String fileName = fileNode.has("name") ? fileNode.get("name").asText() : "";
+                            String fileUrl = fileNode.has("url") ? fileNode.get("url").asText() : "";
+
+                            if (!fileName.isEmpty() && !fileUrl.isEmpty()) {
+                                java.util.Map<String, String> fileInfo = new java.util.HashMap<>();
+                                fileInfo.put("agendaNo", String.valueOf(i + 1));
+                                fileInfo.put("name", fileName);
+                                fileInfo.put("url", fileUrl);
+                                allFiles.add(fileInfo);
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("Error parsing agenda " + (i + 1) + " data: " + e.getMessage());
+            }
+        }
+
+        return allFiles;
+    }
+
+    // --- Helper 6: สร้าง HTML สำหรับแสดงไฟล์แนบ (Professional + Emoji) ---
+    private String generateAttachedFilesHtml(java.util.List<java.util.Map<String, String>> files) {
+        if (files == null || files.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder html = new StringBuilder();
+
+        // เริ่มต้น div container พร้อมเส้นแบ่ง
+        html.append("<div style=\"margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e7eb;\">");
+
+        // หัวข้อพร้อม emoji และจำนวนไฟล์
+        html.append("<p style=\"margin: 5px 0 10px 0; font-weight: 600; color: #1f2937; font-size: 14px;\">");
+        html.append("📎 เอกสารแนบ (").append(files.size()).append(" ไฟล์)");
+        html.append("</p>");
+
+        // container สำหรับรายการไฟล์
+        html.append("<div style=\"margin: 0; padding: 0;\">");
+
+        for (java.util.Map<String, String> file : files) {
+            String fileName = file.get("name");
+            String fileUrl = file.get("url");
+            String agendaNo = file.get("agendaNo");
+
+            // สร้าง full URL
+            String fullUrl = "http://localhost:8080" + fileUrl;
+
+            // แต่ละไฟล์
+            html.append("<div style=\"margin: 6px 0; padding-left: 8px;\">");
+            html.append("<span style=\"font-size: 14px;\">📄</span>");
+            html.append("<a href=\"").append(fullUrl).append("\" ");
+            html.append("style=\"color: #1f2937; text-decoration: none; font-size: 14px; margin-left: 4px;\">");
+            html.append(fileName);
+            html.append("</a>");
+            html.append("<span style=\"color: #6b7280; font-size: 13px; margin-left: 6px;\">วาระที่ ");
+            html.append(agendaNo);
+            html.append("</span>");
+            html.append("</div>");
+        }
+
+        html.append("</div>"); // ปิด files container
+        html.append("</div>"); // ปิด main container
+
+        return html.toString();
+    }
+
+    // --- Helper 7: ดึงไฟล์แนบจาก resolutionDetail ---
+    private java.util.List<java.util.Map<String, String>> extractResolutionAttachedFiles(Meeting meeting) {
+        java.util.List<java.util.Map<String, String>> allFiles = new java.util.ArrayList<>();
+
+        String resolutionDetail = meeting.getResolutionDetail();
+        if (resolutionDetail == null || resolutionDetail.isEmpty()) {
+            return allFiles;
+        }
+
+        try {
+            // Parse JSON
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(resolutionDetail);
+
+            // กรณีที่ 1: root เป็น array ของ resolutions
+            if (root.isArray()) {
+                for (com.fasterxml.jackson.databind.JsonNode resolutionNode : root) {
+                    extractFilesFromNode(resolutionNode, allFiles);
+                }
+            }
+            // กรณีที่ 2: root เป็น object เดียว
+            else if (root.isObject()) {
+                extractFilesFromNode(root, allFiles);
+            }
+        } catch (Exception e) {
+            System.err.println("Error parsing resolutionDetail data: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        return allFiles;
+    }
+
+    // Helper method สำหรับดึงไฟล์จาก JsonNode
+    private void extractFilesFromNode(com.fasterxml.jackson.databind.JsonNode node, java.util.List<java.util.Map<String, String>> allFiles) {
+        // ตรวจสอบทั้ง "files" (สำหรับ resolutionDetail) และ "attachedFiles" (สำหรับ agenda)
+        String[] possibleFields = {"files", "attachedFiles"};
+
+        for (String fieldName : possibleFields) {
+            if (node.has(fieldName)) {
+                com.fasterxml.jackson.databind.JsonNode filesNode = node.get(fieldName);
+                if (filesNode.isArray()) {
+                    for (com.fasterxml.jackson.databind.JsonNode fileNode : filesNode) {
+                        String fileName = fileNode.has("name") ? fileNode.get("name").asText() : "";
+                        String fileUrl = fileNode.has("url") ? fileNode.get("url").asText() : "";
+
+                        if (!fileName.isEmpty() && !fileUrl.isEmpty()) {
+                            java.util.Map<String, String> fileInfo = new java.util.HashMap<>();
+                            fileInfo.put("name", fileName);
+                            fileInfo.put("url", fileUrl);
+                            allFiles.add(fileInfo);
+                        }
+                    }
+                }
+                break; // พบแล้วไม่ต้องหาต่อ
+            }
+        }
+    }
+
+    // --- Helper 8: สร้าง HTML สำหรับแสดงไฟล์แนบจากรายละเอียดผลการประชุม (ไม่แสดงวาระ) ---
+    private String generateResolutionFilesHtml(java.util.List<java.util.Map<String, String>> files) {
+        if (files == null || files.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder html = new StringBuilder();
+
+        // เริ่มต้น div container พร้อมเส้นแบ่ง
+        html.append("<div style=\"margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e7eb;\">");
+
+        // หัวข้อพร้อม emoji และจำนวนไฟล์
+        html.append("<p style=\"margin: 5px 0 10px 0; font-weight: 600; color: #1f2937; font-size: 14px;\">");
+        html.append("📎 เอกสารแนบ (").append(files.size()).append(" ไฟล์)");
+        html.append("</p>");
+
+        // container สำหรับรายการไฟล์
+        html.append("<div style=\"margin: 0; padding: 0;\">");
+
+        for (java.util.Map<String, String> file : files) {
+            String fileName = file.get("name");
+            String fileUrl = file.get("url");
+
+            // สร้าง full URL
+            String fullUrl = "http://localhost:8080" + fileUrl;
+
+            // แต่ละไฟล์ (ไม่แสดงวาระเพราะมาจาก resolutionDetail)
+            html.append("<div style=\"margin: 6px 0; padding-left: 8px;\">");
+            html.append("<span style=\"font-size: 14px;\">📄</span>");
+            html.append("<a href=\"").append(fullUrl).append("\" ");
+            html.append("style=\"color: #1f2937; text-decoration: none; font-size: 14px; margin-left: 4px;\">");
+            html.append(fileName);
+            html.append("</a>");
+            html.append("</div>");
+        }
+
+        html.append("</div>"); // ปิด files container
+        html.append("</div>"); // ปิด main container
+
+        return html.toString();
     }
 }
