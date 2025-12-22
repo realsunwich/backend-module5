@@ -1,11 +1,15 @@
 package com.example.demo.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import jakarta.persistence.*;
 import lombok.Data;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Entity
 @Table(name = "meetings")
@@ -52,9 +56,30 @@ public class Meeting {
     @Column(name = "agenda_5_data", columnDefinition = "LONGTEXT")
     private String agendaFiveData;
 
-    @ManyToMany
-    @JoinTable(name = "meeting_attendees", joinColumns = @JoinColumn(name = "meeting_id"), inverseJoinColumns = @JoinColumn(name = "member_id"))
-    private List<CommitteeMember> attendees;
+    @OneToMany(mappedBy = "meeting", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnoreProperties({"meeting"})
+    private List<MeetingAttendee> meetingAttendees = new ArrayList<>();
+
+    @Transient
+    public List<CommitteeMember> getAttendees() {
+        return meetingAttendees.stream()
+                .map(MeetingAttendee::getMember)
+                .collect(Collectors.toList());
+    }
+
+    public void setAttendees(List<CommitteeMember> members) {
+        this.meetingAttendees.clear();
+        if (members != null) {
+            for (CommitteeMember member : members) {
+                MeetingAttendee ma = new MeetingAttendee();
+                ma.setMeeting(this);
+                ma.setMember(member);
+                ma.setId(new MeetingAttendeeId(this.id, member.getId()));
+                ma.setSnacksAccepted(false);
+                this.meetingAttendees.add(ma);
+            }
+        }
+    }
 
     @Column(name = "resolution_detail", columnDefinition = "LONGTEXT")
     private String resolutionDetail;

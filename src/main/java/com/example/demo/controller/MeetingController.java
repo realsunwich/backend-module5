@@ -74,7 +74,8 @@ public class MeetingController {
         // Debug log
         System.out.println("=== UPDATE MEETING DEBUG ===");
         System.out.println("Status: " + updatedMeeting.getStatus());
-        System.out.println("Attendees: " + (updatedMeeting.getAttendees() != null ? updatedMeeting.getAttendees().size() : "null"));
+        System.out.println("Attendees: "
+                + (updatedMeeting.getAttendees() != null ? updatedMeeting.getAttendees().size() : "null"));
         System.out.println("CurrentStep: " + request.getCurrentStep());
         System.out.println("===========================");
 
@@ -82,17 +83,16 @@ public class MeetingController {
                 && updatedMeeting.getAttendees() != null && !updatedMeeting.getAttendees().isEmpty()
                 && request.getCurrentStep() != null && request.getCurrentStep() == 5) {
 
-            System.out.println("✅ Condition matched! Sending calendar invites...");
+            System.out.println("✅ Condition matched! Sending meeting invitations...");
 
             String meetingUrl = getMeetingUrl(updatedMeeting.getMeetingTypeCode(), updatedMeeting.getId());
             String emailTitle = "แจ้งนัดหมายการประชุม";
 
-            // สร้างไฟล์ .ics สำหรับ Calendar Invite
-            String icsContent = generateIcsContent(updatedMeeting);
-
             // ดึงไฟล์แนบทั้งหมดจากวาระการประชุม
             java.util.List<java.util.Map<String, String>> attachedFiles = extractAllAttachedFiles(updatedMeeting);
             String attachedFilesHtml = generateAttachedFilesHtml(attachedFiles);
+
+            // ========== 1. ส่งอีเมลแจ้งเตือนให้ผู้ดูแลระบบ (แบบ Notification ธรรมดา) ==========
 
             String adminEmailBody = String.format(
                     "<html>" +
@@ -142,8 +142,8 @@ public class MeetingController {
                     attachedFilesHtml, // เพิ่มพารามิเตอร์ไฟล์แนบ
                     meetingUrl);
 
-            // ส่ง Calendar Invite ให้ผู้ดูแลระบบ
-            emailService.sendCalendarInvite("nuntiya.suw@ilustro.co", emailTitle, adminEmailBody, icsContent);
+            // ส่งอีเมล notification ธรรมดาให้ผู้ดูแลระบบ (ไม่ใช่ Calendar Invite)
+            emailService.sendMeetingNotification("nuntiya.suw@ilustro.co", emailTitle, adminEmailBody);
 
             String lineMsg = "📅 แจ้งนัดหมายการประชุม\n" +
                     "เรื่อง: " + stripHtml(updatedMeeting.getDescription()) + "\n" +
@@ -154,12 +154,42 @@ public class MeetingController {
 
             lineBotService.sendPushMessage(lineMsg);
 
-            // ส่ง Calendar Invite ให้ผู้เข้าร่วมประชุมทุกคน
+            // ========== 2. ส่ง Calendar Invite ให้ผู้เข้าร่วมประชุม (มีปุ่ม Accept/Decline) ==========
+
+            // สร้างไฟล์ .ics สำหรับ Calendar Invite
+            String icsContent = generateIcsContent(updatedMeeting);
+
             for (CommitteeMember attendee : updatedMeeting.getAttendees()) {
                 if (attendee.getEmail() != null && !attendee.getEmail().isEmpty()) {
                     String attendeeName = attendee.getPrename() != null
                             ? attendee.getPrename() + attendee.getFirstname() + " " + attendee.getLastname()
                             : attendee.getFirstname() + " " + attendee.getLastname();
+
+                    // สร้าง URL สำหรับปุ่มยอมรับ/ปฏิเสธของว่าง
+                    String acceptUrl = String.format(
+                            "http://localhost:8080/api/meetings/%d/snacks-response?memberId=%d&accept=true",
+                            updatedMeeting.getId(),
+                            attendee.getId());
+
+                    String declineUrl = String.format(
+                            "http://localhost:8080/api/meetings/%d/snacks-response?memberId=%d&accept=false",
+                            updatedMeeting.getId(),
+                            attendee.getId());
+
+                    String snacksSection = String.format(
+                            "<div style=\"text-align: center; margin: 20px 0; padding: 20px; background-color: #fff7ed; border-radius: 6px; border: 1px solid #fed7aa;\">"
+                                    +
+                                    "<p style=\"margin: 0 0 10px 0; font-weight: 600; color: #ea580c; font-size: 15px;\">🍪 ของว่างระหว่างประชุม</p>"
+                                    +
+                                    "<p style=\"margin: 0 0 15px 0; font-size: 14px; color: #78716c;\">กรุณาตอบรับหรือปฏิเสธของว่าง</p>"
+                                    +
+                                    "<a href=\"%s\" style=\"background-color: #059669; color: #ffffff; padding: 10px 24px; text-decoration: none; border-radius: 5px; margin-right: 10px; display: inline-block; font-weight: 600;\">✅ ยอมรับ</a>"
+                                    +
+                                    "<a href=\"%s\" style=\"background-color: #dc2626; color: #ffffff; padding: 10px 24px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: 600;\">❌ ปฏิเสธ</a>"
+                                    +
+                                    "</div>",
+                            acceptUrl,
+                            declineUrl);
 
                     String attendeeEmailBody = String.format(
                             "<html>" +
@@ -185,6 +215,15 @@ public class MeetingController {
                                     "</div>" +
 
                                     "<p>กรุณาเข้าร่วมการประชุมตามวัน เวลา และสถานที่ดังกล่าว</p>" +
+
+                                    "<div style=\"background-color: #eff6ff; padding: 15px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #3b82f6;\">"
+                                    +
+                                    "<p style=\"margin: 0; font-size: 14px; color: #1e40af;\">💡 <b>หมายเหตุ:</b> หลังจากกดปุ่ม <b>Accept Meeting</b> ในอีเมลนี้แล้ว ท่านสามารถตรวจสอบรายละเอียดการประชุม วันที่ เวลา และสถานที่ ได้จาก <b>Outlook Calendar</b> ของท่านได้ทันที</p>"
+                                    +
+                                    "</div>" +
+
+                                    "%s" + // เพิ่มส่วนของว่าง (snacksSection)
+
                                     "<div style=\"text-align: center; margin: 30px 0;\">" +
                                     "<a href=\"%s\" style=\"background-color: #141371; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;\">ดูรายละเอียดเพิ่มเติม</a>"
                                     +
@@ -209,6 +248,7 @@ public class MeetingController {
                             updatedMeeting.getMeetingTime(),
                             updatedMeeting.getLocation() != null ? updatedMeeting.getLocation() : "-",
                             attachedFilesHtml, // เพิ่มพารามิเตอร์ไฟล์แนบ
+                            snacksSection, // เพิ่มส่วนของว่าง
                             meetingUrl);
 
                     // ส่ง Calendar Invite แทน sendMeetingNotification
@@ -230,7 +270,8 @@ public class MeetingController {
             String adminEmail = "ictbookingroom@outlook.com";
 
             // ดึงไฟล์แนบสำหรับอีเมลนี้ด้วย
-            java.util.List<java.util.Map<String, String>> attachedFilesForAdmin = extractAllAttachedFiles(updatedMeeting);
+            java.util.List<java.util.Map<String, String>> attachedFilesForAdmin = extractAllAttachedFiles(
+                    updatedMeeting);
             String attachedFilesHtmlForAdmin = generateAttachedFilesHtml(attachedFilesForAdmin);
 
             String emailBody = String.format(
@@ -321,7 +362,8 @@ public class MeetingController {
                 String meetingUrl = getMeetingUrl(updated.getMeetingTypeCode(), updated.getId());
 
                 // ดึงไฟล์แนบจาก resolutionDetail สำหรับอีเมลสรุปผล
-                java.util.List<java.util.Map<String, String>> attachedFilesResolution = extractResolutionAttachedFiles(updated);
+                java.util.List<java.util.Map<String, String>> attachedFilesResolution = extractResolutionAttachedFiles(
+                        updated);
                 String attachedFilesHtmlResolution = generateResolutionFilesHtml(attachedFilesResolution);
 
                 // อีเมลสำหรับผู้เกี่ยวข้อง
@@ -473,7 +515,7 @@ public class MeetingController {
         sb.append("BEGIN:VCALENDAR\n");
         sb.append("VERSION:2.0\n");
         sb.append("PRODID:-//ICT Booking Room//Meeting System//EN\n");
-        sb.append("METHOD:PUBLISH\n"); // เปลี่ยนเป็น PUBLISH เพื่อให้อีเมลไม่หายหลัง Add to Calendar
+        sb.append("METHOD:REQUEST\n"); // ใช้ REQUEST เพื่อให้มีปุ่ม Accept/Decline
         sb.append("BEGIN:VEVENT\n");
         sb.append("UID:").append(uid).append("\n");
         sb.append("DTSTAMP:").append(dtStamp).append("\n");
@@ -484,13 +526,14 @@ public class MeetingController {
         sb.append("LOCATION:").append(location).append("\n");
         sb.append("ORGANIZER;CN=ICT Booking Admin:mailto:ictbookingroom@gmail.com\n");
 
-        // เพิ่ม ATTENDEE สำหรับผู้เข้าร่วม (ไม่ต้อง RSVP เพราะเป็น PUBLISH)
+        // เพิ่ม ATTENDEE สำหรับผู้เข้าร่วม พร้อม RSVP=TRUE
         if (meeting.getAttendees() != null) {
             for (CommitteeMember attendee : meeting.getAttendees()) {
                 if (attendee.getEmail() != null && !attendee.getEmail().isEmpty()) {
                     String attendeeName = (attendee.getPrename() != null ? attendee.getPrename() : "")
                             + attendee.getFirstname() + " " + attendee.getLastname();
-                    sb.append("ATTENDEE;CN=").append(escapeIcsText(attendeeName))
+                    sb.append("ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;CN=")
+                            .append(escapeIcsText(attendeeName))
                             .append(":mailto:").append(attendee.getEmail()).append("\n");
                 }
             }
@@ -498,7 +541,7 @@ public class MeetingController {
 
         sb.append("STATUS:CONFIRMED\n");
         sb.append("SEQUENCE:0\n");
-        sb.append("CLASS:PUBLIC\n"); // เพิ่ม CLASS:PUBLIC เพื่อระบุว่าเป็น public event
+        sb.append("CLASS:PUBLIC\n");
         sb.append("END:VEVENT\n");
         sb.append("END:VCALENDAR");
 
@@ -549,16 +592,17 @@ public class MeetingController {
 
         // ตรวจสอบแต่ละวาระ (1-5)
         String[] agendaFields = {
-            meeting.getAgendaOneData(),
-            meeting.getAgendaTwoData(),
-            meeting.getAgendaThreeData(),
-            meeting.getAgendaFourData(),
-            meeting.getAgendaFiveData()
+                meeting.getAgendaOneData(),
+                meeting.getAgendaTwoData(),
+                meeting.getAgendaThreeData(),
+                meeting.getAgendaFourData(),
+                meeting.getAgendaFiveData()
         };
 
         for (int i = 0; i < agendaFields.length; i++) {
             String agendaData = agendaFields[i];
-            if (agendaData == null || agendaData.isEmpty()) continue;
+            if (agendaData == null || agendaData.isEmpty())
+                continue;
 
             try {
                 // Parse JSON
@@ -670,9 +714,11 @@ public class MeetingController {
     }
 
     // Helper method สำหรับดึงไฟล์จาก JsonNode
-    private void extractFilesFromNode(com.fasterxml.jackson.databind.JsonNode node, java.util.List<java.util.Map<String, String>> allFiles) {
-        // ตรวจสอบทั้ง "files" (สำหรับ resolutionDetail) และ "attachedFiles" (สำหรับ agenda)
-        String[] possibleFields = {"files", "attachedFiles"};
+    private void extractFilesFromNode(com.fasterxml.jackson.databind.JsonNode node,
+            java.util.List<java.util.Map<String, String>> allFiles) {
+        // ตรวจสอบทั้ง "files" (สำหรับ resolutionDetail) และ "attachedFiles" (สำหรับ
+        // agenda)
+        String[] possibleFields = { "files", "attachedFiles" };
 
         for (String fieldName : possibleFields) {
             if (node.has(fieldName)) {
@@ -695,7 +741,8 @@ public class MeetingController {
         }
     }
 
-    // --- Helper 8: สร้าง HTML สำหรับแสดงไฟล์แนบจากรายละเอียดผลการประชุม (ไม่แสดงวาระ) ---
+    // --- Helper 8: สร้าง HTML สำหรับแสดงไฟล์แนบจากรายละเอียดผลการประชุม
+    // (ไม่แสดงวาระ) ---
     private String generateResolutionFilesHtml(java.util.List<java.util.Map<String, String>> files) {
         if (files == null || files.isEmpty()) {
             return "";
@@ -735,5 +782,120 @@ public class MeetingController {
         html.append("</div>"); // ปิด main container
 
         return html.toString();
+    }
+
+    // --- API Endpoint: รับการตอบรับ/ปฏิเสธของว่าง ---
+    @GetMapping("/meetings/{meetingId}/snacks-response")
+    public ResponseEntity<String> handleSnacksResponse(
+            @PathVariable Long meetingId,
+            @RequestParam Long memberId,
+            @RequestParam Boolean accept) {
+
+        try {
+            meetingService.updateSnacksResponse(meetingId, memberId, accept);
+
+            String message = accept
+                    ? "✅ ยอมรับของว่างเรียบร้อย ขอบคุณครับ/ค่ะ"
+                    : "❌ ปฏิเสธของว่างเรียบร้อย ขอบคุณครับ/ค่ะ";
+
+            // String bgColor = accept ? "#d1fae5" : "#fee2e2";
+            String textColor = accept ? "#065f46" : "#991b1b";
+            String icon = accept ? "✅" : "❌";
+
+            // Return HTML page
+            String htmlResponse = String.format(
+                    "<html>" +
+                            "<head><meta charset=\"UTF-8\"></head>" +
+                            "<body style=\"font-family: 'Sarabun', Arial, sans-serif; text-align: center; padding: 50px; background-color: #f9fafb;\">"
+                            +
+                            "<div style=\"max-width: 500px; margin: 0 auto; background-color: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);\">"
+                            +
+                            "<div style=\"font-size: 64px; margin-bottom: 20px;\">%s</div>" +
+                            "<h2 style=\"color: %s; margin: 20px 0;\">%s</h2>" +
+                            "<p style=\"color: #6b7280; font-size: 16px;\">คุณสามารถปิดหน้านี้ได้แล้ว</p>" +
+                            "</div>" +
+                            "</body>" +
+                            "</html>",
+                    icon,
+                    textColor,
+                    message);
+
+            return ResponseEntity.ok()
+                    .header("Content-Type", "text/html; charset=UTF-8")
+                    .body(htmlResponse);
+
+        } catch (Exception e) {
+            String errorHtml = String.format(
+                    "<html>" +
+                            "<head><meta charset=\"UTF-8\"></head>" +
+                            "<body style=\"font-family: 'Sarabun', Arial, sans-serif; text-align: center; padding: 50px; background-color: #f9fafb;\">"
+                            +
+                            "<div style=\"max-width: 500px; margin: 0 auto; background-color: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);\">"
+                            +
+                            "<div style=\"font-size: 64px; margin-bottom: 20px;\">⚠️</div>" +
+                            "<h2 style=\"color: #dc2626; margin: 20px 0;\">เกิดข้อผิดพลาด</h2>" +
+                            "<p style=\"color: #6b7280; font-size: 16px;\">%s</p>" +
+                            "</div>" +
+                            "</body>" +
+                            "</html>",
+                    e.getMessage());
+
+            return ResponseEntity.badRequest()
+                    .header("Content-Type", "text/html; charset=UTF-8")
+                    .body(errorHtml);
+        }
+    }
+
+    // --- API Endpoint: ดูสรุปผลการตอบรับของว่าง (สำหรับ Admin) ---
+    @GetMapping("/meetings/{id}/snacks-summary")
+    public ResponseEntity<?> getSnacksSummary(@PathVariable Long id) {
+        try {
+            Meeting meeting = meetingService.getMeetingById(id);
+
+            java.util.Map<String, Object> summary = new java.util.HashMap<>();
+
+            java.util.List<java.util.Map<String, Object>> accepted = meeting.getMeetingAttendees().stream()
+                    .filter(ma -> ma.getSnacksAccepted())
+                    .map(ma -> {
+                        java.util.Map<String, Object> info = new java.util.HashMap<>();
+                        CommitteeMember m = ma.getMember();
+                        String fullName = (m.getPrename() != null ? m.getPrename() : "")
+                                + m.getFirstname() + " " + m.getLastname();
+                        info.put("name", fullName);
+                        info.put("email", m.getEmail());
+                        info.put("responseTime", ma.getSnacksResponseTime());
+                        return info;
+                    })
+                    .collect(java.util.stream.Collectors.toList());
+
+            java.util.List<java.util.Map<String, Object>> declined = meeting.getMeetingAttendees().stream()
+                    .filter(ma -> !ma.getSnacksAccepted())
+                    .map(ma -> {
+                        java.util.Map<String, Object> info = new java.util.HashMap<>();
+                        CommitteeMember m = ma.getMember();
+                        String fullName = (m.getPrename() != null ? m.getPrename() : "")
+                                + m.getFirstname() + " " + m.getLastname();
+                        info.put("name", fullName);
+                        info.put("email", m.getEmail());
+                        info.put("responseTime", ma.getSnacksResponseTime());
+                        return info;
+                    })
+                    .collect(java.util.stream.Collectors.toList());
+
+            summary.put("meetingNo", meeting.getMeetingNo());
+            summary.put("description", meeting.getDescription());
+            summary.put("meetingDate", meeting.getMeetingDate());
+            summary.put("totalAttendees", meeting.getMeetingAttendees().size());
+            summary.put("acceptedCount", accepted.size());
+            summary.put("declinedCount", declined.size());
+            summary.put("accepted", accepted);
+            summary.put("declined", declined);
+
+            return ResponseEntity.ok(summary);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error: " + e.getMessage());
+        }
     }
 }

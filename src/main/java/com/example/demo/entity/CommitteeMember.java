@@ -1,10 +1,14 @@
 package com.example.demo.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import jakarta.persistence.*;
 import lombok.Data; // ใช้ Lombok ลด code getter/setter
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "committee_members")
@@ -71,6 +75,10 @@ public class CommitteeMember {
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
+
+    @OneToMany(mappedBy = "member")
+    @JsonIgnoreProperties({"member"})
+    private List<MeetingAttendee> meetingAttendees = new ArrayList<>();
 
     @PrePersist
     protected void onCreate() {

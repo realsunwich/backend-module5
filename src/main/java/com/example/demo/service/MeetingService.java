@@ -3,6 +3,7 @@ package com.example.demo.service;
 import com.example.demo.dto.MeetingRequest;
 import com.example.demo.entity.CommitteeMember;
 import com.example.demo.entity.Meeting;
+import com.example.demo.entity.MeetingAttendee;
 import com.example.demo.repository.CommitteeMemberRepository;
 import com.example.demo.repository.MeetingRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -151,5 +153,21 @@ public class MeetingService {
         }
 
         return meetingRepository.save(meeting);
+    }
+
+    @Transactional
+    public void updateSnacksResponse(Long meetingId, Long memberId, Boolean accept) {
+        Meeting meeting = meetingRepository.findById(meetingId)
+                .orElseThrow(() -> new RuntimeException("Meeting not found with id: " + meetingId));
+
+        MeetingAttendee attendee = meeting.getMeetingAttendees().stream()
+                .filter(ma -> ma.getMember().getId().equals(memberId))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Member not found in this meeting"));
+
+        attendee.setSnacksAccepted(accept);
+        attendee.setSnacksResponseTime(LocalDateTime.now());
+
+        meetingRepository.save(meeting);
     }
 }
