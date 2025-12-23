@@ -2,6 +2,7 @@ package com.example.demo.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -20,7 +21,7 @@ public class TyphoonService {
     @Value("${typhoon.api.key}")
     private String typhoonApiKey;
 
-    @Value("${typhoon.model.name:typhoon-ocr}") // Default เป็น typhoon-ocr
+    @Value("${typhoon.model.name:typhoon-ocr}")
     private String modelName;
 
     private final WebClient webClient;
@@ -29,9 +30,7 @@ public class TyphoonService {
     public TyphoonService(WebClient.Builder webClientBuilder) {
         this.webClient = webClientBuilder
                 .baseUrl("https://api.opentyphoon.ai")
-                .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(20 * 1024 * 1024)) // เพิ่ม Buffer เป็น
-                                                                                                    // 20MB เผื่อ
-                                                                                                    // Markdown ยาว
+                .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(20 * 1024 * 1024))
                 .build();
     }
 
@@ -40,52 +39,53 @@ public class TyphoonService {
             String base64Image = Base64.getEncoder().encodeToString(file.getBytes());
             String imageUrl = "data:" + file.getContentType() + ";base64," + base64Image;
 
-            // Prompt สำหรับ Typhoon OCR: แยกข้อมูลใบกำกับภาษี/ใบเสร็จรับเงิน
+            // --- IMPROVED PROMPT ENGINEERING for Typhoon OCR ---
+            // Based on best practices from https://opentyphoon.ai/model/typhoon-ocr
             String promptText = """
-                    Extract all information from this Thai tax invoice/receipt document and return in structured format.
+                    Extract ALL text from this Thai invoice/receipt image and structure it in the following Markdown format.
 
-                    Please identify and extract:
-                    1. Document type (ใบกำกับภาษี, ใบเสร็จรับเงิน)
-                    2. Invoice/Receipt number (เลขที่)
-                    3. Tax invoice number (เลขประจำตัวผู้เสียภาษีอากร)
-                    4. Issue date (วันที่)
-                    5. Tax ID (ติดต่อ)
+                    Be extremely careful to extract EXACT values as they appear in the image, especially numbers and Thai text.
 
-                    Seller Information (ร้านค้า/ให้บริการ):
-                    - Name (บริษัท, ชื่อ)
-                    - Address (ที่อยู่)
-                    - Tax ID (เลขประจำตัวผู้เสียภาษีอากร)
-                    - Contact (ติดต่อ)
+                    # เอกสาร (Document)
+                    - **ประเภท**: (ใบกำกับภาษี/ใบเสร็จรับเงิน/ใบส่งของ)
+                    - **เลขที่**: (Document number - may start with letters/numbers)
+                    - **วันที่**: (Date in DD/MM/YYYY format)
 
-                    Buyer Information (รายละเอียดลูกค้า):
-                    - Name (ลูกค้า, ผู้ซื้อ)
-                    - Address (ที่อยู่)
-                    - Tax ID (เลขประจำตัวผู้เสียภาษีอากร)
+                    # ร้านค้า/ผู้ขาย (Seller)
+                    - **ชื่อ**: (Company/Store name - extract the main business name)
+                    - **ที่อยู่**: (Complete address including street, district, province, postal code)
+                    - **เลขประจำตัวผู้เสียภาษี**: (13-digit tax ID - format: XXXXXXXXXXXXX)
+                    - **โทรศัพท์**: (Phone number if available)
 
-                    Items (รายการสินค้า):
-                    - Description (รายการสินค้า)
-                    - Quantity (จำนวน)
-                    - Unit price (ราคาต่อหน่วย)
-                    - Amount (จำนวนเงิน)
+                    # ลูกค้า/ผู้ซื้อ (Buyer)
+                    - **ชื่อ**: (Customer name)
+                    - **ที่อยู่**: (Complete address)
+                    - **เลขประจำตัวผู้เสียภาษี**: (13-digit tax ID if shown)
 
-                    Payment Summary:
-                    - Subtotal (ทั้งหมด)
-                    - Discount (ส่วนลด)
-                    - Amount before tax (ค่าสินค้า)
-                    - Subtotal (รวมราคาสุทธิ)
-                    - VAT amount and rate (ภาษีมูลค่าเพิ่ม, %)
-                    - Total amount (ราคารวมภาษีมูลค่าเพิ่ม)
+                    # รายการสินค้า (Items)
+                    Create a table in this exact format:
+                    | รายการ | จำนวน | ราคาต่อหน่วย | จำนวนเงิน |
+                    |--------|--------|-------------|-----------|
+                    | [item description] | [qty] | [unit price] | [total] |
 
-                    Additional information:
-                    - Note/Remarks (หมายเหตุ)
-                    - Signature field (ผู้รับสงบาม)
+                    # ยอดเงิน (Totals)
+                    - **ราคาสินค้า**: (Subtotal before tax)
+                    - **ภาษีมูลค่าเพิ่ม**: (VAT amount with % if shown)
+                    - **รวมทั้งสิ้น**: (Grand total)
+                    - **ส่วนลด**: (Discount if any)
+                    - **ค่าจัดส่ง**: (Shipping if any)
 
-                    Return all text content in Markdown format with clear sections.
+                    IMPORTANT:
+                    - Extract numbers EXACTLY as shown (e.g., "4,399.00", "287.79")
+                    - Include currency symbols if present (e.g., "บาท", "THB", "฿")
+                    - Preserve all Thai characters accurately
+                    - If a field is not found in the image, write "ไม่ระบุ" (Not specified)
                     """;
 
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("model", modelName);
-            requestBody.put("max_tokens", 4096); // เผื่อผลลัพธ์ยาว
+            requestBody.put("max_tokens", 4000);
+            requestBody.put("temperature", 0.1); // Low temp for high accuracy (Deterministic)
 
             Map<String, Object> textContent = Map.of("type", "text", "text", promptText);
             Map<String, Object> imageContent = Map.of("type", "image_url", "image_url", Map.of("url", imageUrl));
@@ -102,34 +102,22 @@ public class TyphoonService {
                     .bodyToMono(String.class)
                     .map(response -> {
                         try {
-                            System.out.println("DEBUG Raw Response: " + response);
-
                             JsonNode root = objectMapper.readTree(response);
-
-                            // 1. เช็ค Error
                             if (root.has("error")) {
                                 throw new RuntimeException("API Error: " + root.path("error").toPrettyString());
                             }
 
-                            // 2. เช็ค choices
                             JsonNode choices = root.path("choices");
-                            if (choices.isMissingNode() || !choices.isArray() || choices.isEmpty()) {
-                                return "{}";
-                            }
-
-                            JsonNode firstChoice = choices.get(0);
-                            if (firstChoice == null)
+                            if (choices.isEmpty())
                                 return "{}";
 
-                            String contentString = firstChoice.path("message").path("content").asText();
+                            String contentString = choices.get(0).path("message").path("content").asText();
 
-                            // 3. แกะ natural_text (ถ้ามี) - Typhoon OCR ชอบส่งมาใน format นี้
-                            String markdownText = "";
-                            if (contentString != null && contentString.trim().startsWith("{")
-                                    && contentString.contains("natural_text")) {
+                            // Handle Typhoon's nested JSON output (rare case but safe to handle)
+                            String markdownText;
+                            if (contentString.trim().startsWith("{") && contentString.contains("natural_text")) {
                                 try {
-                                    JsonNode inner = objectMapper.readTree(contentString);
-                                    markdownText = inner.path("natural_text").asText();
+                                    markdownText = objectMapper.readTree(contentString).path("natural_text").asText();
                                 } catch (Exception e) {
                                     markdownText = contentString;
                                 }
@@ -137,11 +125,9 @@ public class TyphoonService {
                                 markdownText = contentString;
                             }
 
-                            // 4. แปลง Markdown เป็น JSON ที่ Frontend ต้องการ
                             return convertMarkdownToJsonStructure(markdownText);
 
                         } catch (Exception e) {
-                            e.printStackTrace();
                             throw new RuntimeException("Error parsing response: " + e.getMessage(), e);
                         }
                     });
@@ -151,294 +137,267 @@ public class TyphoonService {
         }
     }
 
-    // --- Helper Methods: แปลง Markdown เป็น JSON ---
+    // --- Core Logic: Robust Markdown Parsing ---
 
     private String convertMarkdownToJsonStructure(String text) {
         ObjectNode result = objectMapper.createObjectNode();
 
-        // เก็บข้อความดิบไว้ดู (Optional) - เปิดเพื่อ debug
-        result.put("raw_text", text);
+        // DEBUG: เก็บ raw markdown ไว้ดู
+        result.put("debug_raw_markdown", text);
 
-        // ข้อมูลเอกสาร - ดึงจากบรรทัดแรก
-        result.put("document_type", extractSimple(text, "ใบกำกับภาษี|ใบเสร็จรับเงิน|Tax Invoice|Receipt"));
+        // 1. Document Type - Support both Thai and English headers
+        result.put("document_type", extractFirstMatch(text,
+                "\\*\\*ประเภท\\*\\*:[\\s]*([^\\n]+)",
+                "\\*\\*Type\\*\\*:[\\s]*([^\\n]+)",
+                "# (ใบกำกับภาษี[^\\n]*|ใบเสร็จรับเงิน[^\\n]*)",
+                "(ใบกำกับภาษี|ใบเสร็จรับเงิน|ใบส่งของ)"));
 
-        // ดึงเลขที่เอกสาร - รองรับทั้งตัวเลข 14 หลักและรูปแบบอื่นๆ
-        String invoiceNumber = extractSimple(text, "(?:เลขที่|No\\.|Invoice No|Document No)[\\s:]+([0-9]{12,14})");
-        if (invoiceNumber == null) {
-            invoiceNumber = extractSimple(text, "[0-9]{12,14}");
-        }
-        result.put("invoice_number", invoiceNumber);
+        // 2. Invoice Number - Enhanced patterns for Thai invoices
+        String invNo = extractFirstMatch(text,
+                "\\*\\*เลขที่\\*\\*:[\\s]*([^\\n]+)",
+                "\\*\\*Document No\\*\\*:[\\s]*([^\\n]+)",
+                "เลขที่[\\s:]*([A-Za-z0-9\\-/]+)",
+                "เลขประจำตัวผู้เสียภาษี[\\s:]*([0-9]{13})",
+                "(?:No\\.|Bill No|เลขที่)[\\s:.]*([A-Za-z0-9\\-/]+)");
+        result.put("invoice_number", cleanValue(invNo));
 
-        // ดึงวันที่
-        String issueDate = extractSimple(text, "(?:วันที่|Date)[\\s:]+([0-9]{2}/[0-9]{2}/[0-9]{4})");
-        if (issueDate == null) {
-            issueDate = extractSimple(text, "[0-9]{2}/[0-9]{2}/[0-9]{4}");
-        }
-        result.put("issue_date", issueDate);
+        // 3. Date - Support Thai date formats
+        String date = extractFirstMatch(text,
+                "\\*\\*วันที่\\*\\*:[\\s]*([^\\n]+)",
+                "\\*\\*Date\\*\\*:[\\s]*([^\\n]+)",
+                "วันที่[\\s:]*([0-9]{1,2}[/\\-][0-9]{1,2}[/\\-][0-9]{2,4})",
+                "Date[\\s:]*([0-9]{1,2}[/\\-][0-9]{1,2}[/\\-][0-9]{2,4})");
+        result.put("issue_date", cleanValue(date));
 
-        // ข้อมูลผู้ขาย (Seller/Vendor)
+        // 4. Seller Info - Support Thai headers
         ObjectNode seller = objectMapper.createObjectNode();
 
-        // ดึงส่วน seller section ก่อน - ถ้าไม่เจอให้ใช้ทั้งหมด
-        String sellerSection = extractSection(text, "ร้านค้าผู้ให้บริการ", "รายละเอียดลูกค้า");
-        if (sellerSection == null) {
-            sellerSection = extractSection(text, "Seller", "Buyer");
-        }
-        if (sellerSection == null) {
-            // ถ้ายังไม่เจอ ให้ดึงส่วนแรกของ text
-            sellerSection = text.substring(0, Math.min(500, text.length()));
-        }
+        String sellerName = extractFirstMatch(text,
+                "# ร้านค้า[\\s\\S]{0,600}?\\*\\*ชื่อ\\*\\*:[\\s]*([^\\n]+)",
+                "# ผู้ขาย[\\s\\S]{0,600}?\\*\\*ชื่อ\\*\\*:[\\s]*([^\\n]+)",
+                "# Seller[\\s\\S]{0,600}?\\*\\*Name\\*\\*:[\\s]*([^\\n]+)",
+                "# Seller[\\s\\S]{0,600}?\\*\\*ชื่อ\\*\\*:[\\s]*([^\\n]+)",
+                "ร้านค้า[^\\n]*?[:\\s]+([ก-๙A-Za-z0-9\\s]+(?:จำกัด|มหาชน|บริษัท)?[^\\n]{5,60})");
+        seller.put("name", cleanValue(sellerName));
 
-        // ดึงชื่อบริษัท/ร้าน - รองรับหลายรูปแบบ
-        String sellerName = null;
+        String sellerAddr = extractFirstMatch(text,
+                "# ร้านค้า[\\s\\S]{0,800}?\\*\\*ที่อยู่\\*\\*:[\\s]*([^\\n]+)",
+                "# ผู้ขาย[\\s\\S]{0,800}?\\*\\*ที่อยู่\\*\\*:[\\s]*([^\\n]+)",
+                "# Seller[\\s\\S]{0,800}?\\*\\*Address\\*\\*:[\\s]*([^\\n]+)",
+                "# Seller[\\s\\S]{0,800}?\\*\\*ที่อยู่\\*\\*:[\\s]*([^\\n]+)",
+                "ที่อยู่[\\s:]*([^\\n]{20,200})");
+        seller.put("address", cleanValue(sellerAddr));
 
-        // ลองหา pattern "บริษัท xxx จำกัด (xxxxx)"
-        sellerName = extractFromSection(sellerSection,
-                "(บริษัท[\\s]+[\\u0E00-\\u0E7Fa-zA-Z0-9\\s\\.]+(?:จำกัด)?(?:[\\s]*\\([^)\\n]{1,20}\\))?)");
+        String sellerTax = extractFirstMatch(text,
+                "# ร้านค้า[\\s\\S]{0,1000}?\\*\\*เลขประจำตัวผู้เสียภาษี\\*\\*:[\\s]*([0-9\\-]{13,17})",
+                "# ผู้ขาย[\\s\\S]{0,1000}?\\*\\*เลขประจำตัวผู้เสียภาษี\\*\\*:[\\s]*([0-9\\-]{13,17})",
+                "# Seller[\\s\\S]{0,1000}?\\*\\*Tax ID\\*\\*:[\\s]*([0-9\\-]{13,17})",
+                "เลขประจำตัวผู้เสียภาษี[\\s:]*([0-9\\-]{13,17})",
+                "Tax ID[\\s:]*([0-9\\-]{13,17})");
+        seller.put("tax_id", normalizeTaxId(sellerTax));
 
-        // ถ้าไม่เจอ ลองหาจาก ** markdown
-        if (sellerName == null) {
-            sellerName = extractFromSection(sellerSection, "\\*\\*([^*\\n]+(?:บริษัท|จำกัด)[^*\\n]+)\\*\\*");
-        }
-
-        // ถ้ายังไม่เจอ ลองหาคำว่า "บริษัท" ธรรมดา
-        if (sellerName == null) {
-            sellerName = extractFromSection(sellerSection,
-                    "บริษัท[\\s]+([\\u0E00-\\u0E7Fa-zA-Z0-9\\s\\.\\(\\)]{3,50})");
-        }
-
-        seller.put("name", sellerName);
-
-        // ดึงที่อยู่ผู้ขาย - รองรับหลายรูปแบบ
-        String sellerAddress = extractFromSection(sellerSection,
-                "เลขที่[\\s]+([0-9]+[^\\n]+?(?:กรุงเทพมหานคร|จังหวัด)[^0-9]*[0-9]{5})");
-        if (sellerAddress == null) {
-            sellerAddress = extractFromSection(sellerSection, "\\nเลขที่[\\s]+([0-9]+[^\\n]+)");
-        }
-        seller.put("address", sellerAddress);
-
-        // ดึง Tax ID ของผู้ขาย
-        String sellerTaxId = extractFromSection(sellerSection, "เลขประจำตัวผู้เสียภาษีอากร[\\s]+([0-9]{12,13})");
-        if (sellerTaxId == null) {
-            sellerTaxId = extractFromSection(sellerSection, "Tax[\\s]+ID[\\s:]+([0-9]{12,13})");
-        }
-        seller.put("tax_id", sellerTaxId);
-
-        // ดึงเบอร์ติดต่อ
-        String contact = extractFromSection(sellerSection, "(?:ติดต่อ|Tel|โทร|Contact)[\\s:]+([0-9\\-]{8,15})");
-        seller.put("contact", contact);
-
+        String sellerPhone = extractFirstMatch(text,
+                "# ร้านค้า[\\s\\S]{0,800}?\\*\\*โทรศัพท์\\*\\*:[\\s]*([^\\n]+)",
+                "# Seller[\\s\\S]{0,800}?\\*\\*Phone\\*\\*:[\\s]*([^\\n]+)",
+                "โทร[\\s:.]*([0-9\\-]{8,15})");
+        seller.put("phone", cleanValue(sellerPhone));
         result.set("seller", seller);
 
-        // ข้อมูลผู้ซื้อ (Buyer/Customer)
+        // 5. Buyer Info
         ObjectNode buyer = objectMapper.createObjectNode();
 
-        // ดึงส่วน buyer section
-        String buyerSection = extractSection(text, "รายละเอียดลูกค้า", "table");
-        if (buyerSection == null) {
-            buyerSection = extractSection(text, "Buyer", "Items");
-        }
-        if (buyerSection == null) {
-            buyerSection = extractSection(text, "ลูกค้า", "รายการสินค้า");
-        }
+        String buyerName = extractFirstMatch(text,
+                "# ลูกค้า[\\s\\S]{0,600}?\\*\\*ชื่อ\\*\\*:[\\s]*([^\\n]+)",
+                "# ผู้ซื้อ[\\s\\S]{0,600}?\\*\\*ชื่อ\\*\\*:[\\s]*([^\\n]+)",
+                "# Buyer[\\s\\S]{0,600}?\\*\\*Name\\*\\*:[\\s]*([^\\n]+)",
+                "# Buyer[\\s\\S]{0,600}?\\*\\*ชื่อ\\*\\*:[\\s]*([^\\n]+)",
+                "ลูกค้า[\\s:]*([ก-๙A-Za-z0-9\\s]{3,60})");
+        buyer.put("name", cleanValue(buyerName));
 
-        if (buyerSection != null) {
-            // ดึงชื่อลูกค้า - หลายรูปแบบ
-            String buyerName = extractFromSection(buyerSection, "\\*\\*ลูกค้า[\\s]+([^*\\n]+)\\*\\*");
-            if (buyerName == null) {
-                buyerName = extractFromSection(buyerSection, "ลูกค้า[\\s]+([\\u0E00-\\u0E7Fa-zA-Z0-9\\s]+?)(?=\\n)");
-            }
-            if (buyerName == null) {
-                buyerName = extractFromSection(buyerSection, "Customer[\\s:]+([A-Za-z\\u0E00-\\u0E7F0-9\\s]+?)(?=\\n)");
-            }
-            buyer.put("name", buyerName);
+        String buyerAddr = extractFirstMatch(text,
+                "# ลูกค้า[\\s\\S]{0,800}?\\*\\*ที่อยู่\\*\\*:[\\s]*([^\\n]+)",
+                "# ผู้ซื้อ[\\s\\S]{0,800}?\\*\\*ที่อยู่\\*\\*:[\\s]*([^\\n]+)",
+                "# Buyer[\\s\\S]{0,800}?\\*\\*Address\\*\\*:[\\s]*([^\\n]+)",
+                "# Buyer[\\s\\S]{0,800}?\\*\\*ที่อยู่\\*\\*:[\\s]*([^\\n]+)");
+        buyer.put("address", cleanValue(buyerAddr));
 
-            // ดึงที่อยู่ลูกค้า - รองรับหลายรูปแบบ
-            String buyerAddress = extractFromSection(buyerSection,
-                    "([0-9]+/[0-9]+[^\\n]+?(?:กทม\\.|กรุงเทพมหานคร|จังหวัด)[^0-9]*[0-9]{5})");
-            if (buyerAddress == null) {
-                buyerAddress = extractFromSection(buyerSection, "\\n([0-9]+/[0-9]+[^\\n]+)");
-            }
-            buyer.put("address", buyerAddress);
-
-            // ดึง Tax ID ของลูกค้า
-            String buyerTaxId = extractFromSection(buyerSection, "เลขประจำตัวผู้เสียภาษีอากร[\\s]+([0-9]{13})");
-            if (buyerTaxId == null) {
-                buyerTaxId = extractFromSection(buyerSection, "Tax[\\s]+ID[\\s:]+([0-9]{13})");
-            }
-            buyer.put("tax_id", buyerTaxId);
-        } else {
-            buyer.putNull("name");
-            buyer.putNull("address");
-            buyer.putNull("tax_id");
-        }
-
+        String buyerTax = extractFirstMatch(text,
+                "# ลูกค้า[\\s\\S]{0,1000}?\\*\\*เลขประจำตัวผู้เสียภาษี\\*\\*:[\\s]*([0-9\\-]{13,17})",
+                "# ผู้ซื้อ[\\s\\S]{0,1000}?\\*\\*เลขประจำตัวผู้เสียภาษี\\*\\*:[\\s]*([0-9\\-]{13,17})",
+                "# Buyer[\\s\\S]{0,1000}?\\*\\*Tax ID\\*\\*:[\\s]*([0-9\\-]{13,17})");
+        buyer.put("tax_id", normalizeTaxId(buyerTax));
         result.set("buyer", buyer);
 
-        // ยอดเงิน (Payment Summary)
+        // 6. Payment Info - Enhanced extraction for Thai invoices
         ObjectNode payment = objectMapper.createObjectNode();
 
-        // ดึงยอดเงินทั้งหมด - รองรับหลายรูปแบบ
-        String subtotal = extractAfter(text, "ทั้งหมด", "[0-9,]+\\.[0-9]{2}");
-        if (subtotal == null) {
-            subtotal = extractAfter(text, "Subtotal", "[0-9,]+\\.[0-9]{2}");
-        }
-        if (subtotal == null) {
-            subtotal = extractAfter(text, "มูลค่าสินค้า", "[0-9,]+\\.[0-9]{2}");
-        }
-        payment.put("subtotal", subtotal != null ? subtotal : "0.00");
+        // Subtotal / Amount before tax
+        String subtotal = extractFirstMatch(text,
+                "\\*\\*ราคาสินค้า\\*\\*:[\\s]*([0-9,]+\\.?[0-9]*)",
+                "\\*\\*Amount Before Tax\\*\\*:[\\s]*([0-9,]+\\.?[0-9]*)",
+                "มูลค่าก่อนภาษี[\\s:]*([0-9,]+\\.?[0-9]*)",
+                "ราคาสินค้า[\\s:]*([0-9,]+\\.?[0-9]*)",
+                "ทั้งหมด[\\s:]*([0-9,]+\\.?[0-9]*)");
+        payment.put("amount_before_tax", normalizePrice(subtotal));
 
-        // ดึงส่วนลด
-        String discount = extractAfter(text, "ส่วนลด", "[0-9,]+\\.[0-9]{2}");
-        if (discount == null) {
-            discount = extractAfter(text, "Discount", "[0-9,]+\\.[0-9]{2}");
-        }
-        payment.put("discount", discount != null ? discount : "0.00");
+        // VAT Amount
+        String vat = extractFirstMatch(text,
+                "\\*\\*ภาษีมูลค่าเพิ่ม\\*\\*:[\\s]*([0-9,]+\\.?[0-9]*)",
+                "\\*\\*VAT Amount\\*\\*:[\\s]*([0-9,]+\\.?[0-9]*)",
+                "ภาษีมูลค่าเพิ่ม[\\s:]*([0-9,]+\\.?[0-9]*)",
+                "VAT[\\s:]*([0-9,]+\\.?[0-9]*)");
+        payment.put("vat_amount", normalizePrice(vat));
 
-        // ดึงยอดก่อน VAT (มูลค่าก่อนภาษี/ค่าสินค้า)
-        String beforeVat = extractAfter(text, "รวมราคาสุทธิ", "[0-9,]+\\.[0-9]{2}");
-        if (beforeVat == null) {
-            beforeVat = extractAfter(text, "ค่าสินค้า", "[0-9,]+\\.[0-9]{2}");
-        }
-        if (beforeVat == null) {
-            beforeVat = extractAfter(text, "มูลค่าก่อนภาษี", "[0-9,]+\\.[0-9]{2}");
-        }
-        if (beforeVat == null) {
-            beforeVat = extractAfter(text, "Amount before", "[0-9,]+\\.[0-9]{2}");
-        }
-        // ถ้ายังไม่เจอ ให้ใช้ค่า subtotal - discount
-        if (beforeVat == null && subtotal != null) {
-            beforeVat = subtotal;
-        }
-        payment.put("amount_before_tax", beforeVat != null ? beforeVat : "0.00");
+        // Grand Total
+        String total = extractFirstMatch(text,
+                "\\*\\*รวมทั้งสิ้น\\*\\*:[\\s]*([0-9,]+\\.?[0-9]*)",
+                "\\*\\*Total Amount\\*\\*:[\\s]*([0-9,]+\\.?[0-9]*)",
+                "รวมทั้งสิ้น[\\s:]*([0-9,]+\\.?[0-9]*)",
+                "ราคารวมทั้งสิ้น[\\s:]*([0-9,]+\\.?[0-9]*)",
+                "Grand Total[\\s:]*([0-9,]+\\.?[0-9]*)",
+                "Total[\\s:]*([0-9,]+\\.?[0-9]*)");
+        payment.put("total_amount", normalizePrice(total));
 
-        // ดึง VAT amount - รองรับหลายรูปแบบ
-        String vat = extractAfter(text, "ภาษีมูลค่าเพิ่ม", "[0-9,]+\\.[0-9]{2}");
-        if (vat == null) {
-            vat = extractAfter(text, "VAT", "[0-9,]+\\.[0-9]{2}");
-        }
-        if (vat == null) {
-            vat = extractAfter(text, "7%", "[0-9,]+\\.[0-9]{2}");
-        }
-        payment.put("vat_amount", vat != null ? vat : "0.00");
-
-        // ดึง VAT rate
-        String vatRate = extractSimple(text, "(?:ภาษีมูลค่าเพิ่ม|VAT)[\\s]*([0-9]+)%");
-        if (vatRate != null) {
-            payment.put("vat_rate", vatRate + "%");
-        } else {
-            payment.put("vat_rate", "7%");
-        }
-
-        // ดึงยอดรวมสุทธิ (ราคารวมภาษี/Net Amount)
-        String total = extractAfter(text, "ราคาไม่รวมภาษีมูลค่าเพิ่ม", "[0-9,]+\\.[0-9]{2}");
-        if (total == null) {
-            total = extractAfter(text, "ราคารวมภาษีมูลค่าเพิ่ม", "[0-9,]+\\.[0-9]{2}");
-        }
-        if (total == null) {
-            total = extractAfter(text, "รวมเงิน", "[0-9,]+\\.[0-9]{2}");
-        }
-        if (total == null) {
-            total = extractAfter(text, "Net Amount", "[0-9,]+\\.[0-9]{2}");
-        }
-        if (total == null) {
-            total = extractAfter(text, "Total", "[0-9,]+\\.[0-9]{2}");
-        }
-        if (total == null) {
-            total = extractAfter(text, "Grand Total", "[0-9,]+\\.[0-9]{2}");
-        }
-        payment.put("total_amount", total != null ? total : "0.00");
+        // Discount
+        String discount = extractFirstMatch(text,
+                "\\*\\*ส่วนลด\\*\\*:[\\s]*([0-9,]+\\.?[0-9]*)",
+                "\\*\\*Discount\\*\\*:[\\s]*([0-9,]+\\.?[0-9]*)",
+                "ส่วนลด[\\s:]*([0-9,]+\\.?[0-9]*)");
+        payment.put("discount", normalizePrice(discount));
 
         result.set("payment", payment);
 
-        // หมายเหตุ - ดึงเนื้อหาหลังคำว่า "หมายเหตุ" (ถ้ามี)
-        String remarksSection = extractSection(text, "หมายเหตุ", "ทั้งหมด");
-        String remarks = null;
-        if (remarksSection != null && remarksSection.length() > 20) {
-            // ถ้ามีเนื้อหาหลังคำว่า "หมายเหตุ" มากกว่า 20 ตัวอักษร
-            remarks = remarksSection.replaceFirst("(?i)หมายเหตุ[\\s:]*", "").trim();
-            if (remarks.isEmpty() || remarks.equals("หมายเหตุ")) {
-                remarks = null;
-            }
-        }
-        result.put("remarks", remarks);
+        // 7. Extract Table Items
+        ArrayNode items = extractTableItems(text);
+        result.set("items", items);
 
         return result.toString();
     }
 
-    // Helper methods ใหม่ที่ใช้งานง่ายกว่า
-    private String extractSimple(String text, String pattern) {
-        if (text == null)
-            return null;
-        try {
-            Pattern p = Pattern.compile(pattern);
-            Matcher m = p.matcher(text);
-            if (m.find()) {
-                return m.group().trim();
-            }
-        } catch (Exception e) {
-            // ignore
-        }
-        return null;
-    }
+    // --- Helper Methods ---
 
-    private String extractAfter(String text, String keyword, String pattern) {
+    /**
+     * Priority Search: รับหลาย Regex แล้วคืนค่าจากตัวแรกที่เจอ
+     * ช่วยให้รองรับ Format ที่หลากหลายของใบกำกับภาษีแต่ละแบบ
+     */
+    private String extractFirstMatch(String text, String... patterns) {
         if (text == null)
             return null;
-        try {
-            int pos = text.indexOf(keyword);
-            if (pos >= 0) {
-                String substr = text.substring(pos);
-                Pattern p = Pattern.compile(pattern);
-                Matcher m = p.matcher(substr);
+        for (String pattern : patterns) {
+            try {
+                Pattern p = Pattern.compile(pattern, Pattern.CASE_INSENSITIVE | Pattern.MULTILINE);
+                Matcher m = p.matcher(text);
                 if (m.find()) {
+                    if (m.groupCount() >= 1) {
+                        return m.group(1).trim();
+                    }
                     return m.group().trim();
                 }
+            } catch (Exception e) {
+                // Ignore bad patterns
             }
-        } catch (Exception e) {
-            // ignore
         }
         return null;
     }
 
-    private String extractSection(String text, String startKeyword, String endKeyword) {
-        if (text == null)
-            return null;
+    /**
+     * ดึงข้อมูลจาก Markdown Table - รองรับทั้ง Thai และ English headers
+     */
+    private ArrayNode extractTableItems(String text) {
+        ArrayNode items = objectMapper.createArrayNode();
         try {
-            int startPos = text.indexOf(startKeyword);
-            if (startPos < 0)
-                return null;
+            // หาบรรทัดที่เป็น Table Row (ขึ้นต้นด้วย |) - รองรับ 4-5 columns
+            Pattern p = Pattern.compile("^\\|(.+?)\\|(.+?)\\|(.+?)\\|(.+?)(?:\\|(.+?))?\\|?$", Pattern.MULTILINE);
+            Matcher m = p.matcher(text);
 
-            int endPos = text.indexOf(endKeyword, startPos + startKeyword.length());
-            if (endPos < 0) {
-                // ถ้าไม่เจอ end keyword ให้เอาไปจนสุดท้าย (จำกัดที่ 1000 ตัวอักษร)
-                endPos = Math.min(startPos + 1000, text.length());
-            }
+            while (m.find()) {
+                String col1 = m.group(1).trim();
+                String col2 = m.group(2).trim();
+                String col3 = m.group(3).trim();
+                String col4 = m.group(4).trim();
 
-            return text.substring(startPos, endPos);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private String extractFromSection(String section, String pattern) {
-        if (section == null)
-            return null;
-        try {
-            Pattern p = Pattern.compile(pattern);
-            Matcher m = p.matcher(section);
-            if (m.find()) {
-                // ถ้ามี capturing group ให้ return group แรก
-                if (m.groupCount() >= 1) {
-                    return m.group(1).trim();
+                // Skip separator rows (contains ---)
+                if (col1.contains("---") || col2.contains("---")) {
+                    continue;
                 }
-                // ถ้าไม่มี capturing group ให้ return ทั้งหมด
-                return m.group().trim();
+
+                // Skip headers (Thai and English)
+                if (col1.toLowerCase().contains("description")
+                    || col1.toLowerCase().contains("รายการ")
+                    || col1.toLowerCase().contains("สินค้า")
+                    || col1.toLowerCase().contains("item")
+                    || col2.toLowerCase().contains("quantity")
+                    || col2.toLowerCase().contains("จำนวน")
+                    || col2.toLowerCase().contains("qty")) {
+                    continue;
+                }
+
+                // Skip empty rows
+                if (col1.isEmpty() || col1.equals(" ") || col1.equals("-")) {
+                    continue;
+                }
+
+                // Skip rows that look like totals/summaries
+                if (col1.toLowerCase().contains("total")
+                    || col1.toLowerCase().contains("รวม")
+                    || col1.toLowerCase().contains("subtotal")) {
+                    continue;
+                }
+
+                ObjectNode item = objectMapper.createObjectNode();
+                item.put("description", cleanValue(col1));
+                item.put("quantity", cleanValue(col2));
+                item.put("unit_price", normalizePrice(col3));
+                item.put("total", normalizePrice(col4));
+                items.add(item);
             }
         } catch (Exception e) {
-            // ignore
+            // If table parsing fails, return empty array
+            System.err.println("Table extraction error: " + e.getMessage());
         }
-        return null;
+        return items;
     }
 
+    private String cleanValue(String input) {
+        if (input == null)
+            return null;
+        return input.replaceAll("[*_]", "").trim();
+    }
+
+    private String normalizePrice(String input) {
+        if (input == null || input.trim().isEmpty())
+            return "0.00";
+
+        // Remove everything except numbers and dots
+        String cleaned = input.replaceAll("[^0-9.]", "");
+
+        if (cleaned.isEmpty())
+            return "0.00";
+
+        try {
+            double value = Double.parseDouble(cleaned);
+            return String.format("%.2f", value);
+        } catch (NumberFormatException e) {
+            return "0.00";
+        }
+    }
+
+    /**
+     * Normalize Thai Tax ID to 13 digits (remove dashes/spaces)
+     */
+    private String normalizeTaxId(String input) {
+        if (input == null || input.trim().isEmpty())
+            return null;
+
+        // Remove all non-digit characters
+        String cleaned = input.replaceAll("[^0-9]", "");
+
+        // Validate it's 13 digits
+        if (cleaned.length() == 13) {
+            return cleaned;
+        }
+
+        // Return original if not valid
+        return input.trim();
+    }
 }

@@ -25,4 +25,24 @@ public interface MeetingRepository extends JpaRepository<Meeting, Long> {
     List<Meeting> findByStatus(String status);
 
     long countByStatus(String status);
+
+    // Query Methods สำหรับ Intent-Based System
+
+    // ดึงการประชุมล่าสุด (จำกัดจำนวน)
+    @Query("SELECT m FROM Meeting m WHERE m.status != 'DRAFT' ORDER BY m.meetingDate DESC, m.meetingTime DESC")
+    List<Meeting> findTop10RecentMeetings(org.springframework.data.domain.Pageable pageable);
+
+    // ดึงการประชุมตามช่วงวันที่
+    @Query("SELECT m FROM Meeting m WHERE m.meetingDate BETWEEN :startDate AND :endDate AND m.status != 'DRAFT' ORDER BY m.meetingDate DESC, m.meetingTime DESC")
+    List<Meeting> findMeetingsBetweenDates(
+            @org.springframework.data.repository.query.Param("startDate") LocalDate startDate,
+            @org.springframework.data.repository.query.Param("endDate") LocalDate endDate
+    );
+
+    // ค้นหาการประชุมตามเลขที่
+    Meeting findByMeetingNo(String meetingNo);
+
+    // นับการประชุมทั้งหมด (ไม่รวม DRAFT)
+    @Query("SELECT COUNT(m) FROM Meeting m WHERE m.status != 'DRAFT'")
+    long countActiveMeetings();
 }
