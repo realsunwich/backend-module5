@@ -34,58 +34,47 @@ public class TyphoonService {
                 .build();
     }
 
-    public Mono<String> analyzeInvoiceImage(MultipartFile file) {
+    /**
+     * อ่านข้อมูลทั้งหมดจากรูป โดยไม่ทำการ parse (ให้ AI ตัวอื่นทำต่อ)
+     */
+    public Mono<String> extractRawTextFromImage(MultipartFile file) {
         try {
             String base64Image = Base64.getEncoder().encodeToString(file.getBytes());
             String imageUrl = "data:" + file.getContentType() + ";base64," + base64Image;
 
-            // --- IMPROVED PROMPT ENGINEERING for Typhoon OCR ---
-            // Based on best practices from https://opentyphoon.ai/model/typhoon-ocr
+            // ปรับ Prompt ให้ Typhoon OCR อ่านข้อมูลทั้งหมดอย่างละเอียดและแม่นยำ
             String promptText = """
-                    Extract ALL text from this Thai invoice/receipt image and structure it in the following Markdown format.
+                    You are a high-precision OCR system. Extract ALL text from this Thai invoice/receipt image with EXTREME ACCURACY.
 
-                    Be extremely careful to extract EXACT values as they appear in the image, especially numbers and Thai text.
+                    CRITICAL RULES:
+                    1. Read each character EXACTLY as shown - DO NOT guess or auto-correct
+                    2. Preserve all Thai diacritics and tone marks precisely (ั ้ ๊ ่ ็ etc.)
+                    3. For numbers, extract EVERY digit exactly (especially Tax IDs must be complete)
+                    4. Read addresses and names character-by-character to avoid mistakes
+                    5. If text is unclear, include what you see rather than making assumptions
 
-                    # เอกสาร (Document)
-                    - **ประเภท**: (ใบกำกับภาษี/ใบเสร็จรับเงิน/ใบส่งของ)
-                    - **เลขที่**: (Document number - may start with letters/numbers)
-                    - **วันที่**: (Date in DD/MM/YYYY format)
+                    Extract everything including:
+                    - Document headers (ใบกำกับภาษี, ใบเสร็จรับเงิน, etc.)
+                    - Document numbers and dates
+                    - Seller information (name, address, tax ID, phone)
+                    - Buyer information (name, address, tax ID)
+                    - Item descriptions (read carefully - don't substitute words)
+                    - All numbers: quantities, prices, tax amounts
+                    - Any notes or remarks
 
-                    # ร้านค้า/ผู้ขาย (Seller)
-                    - **ชื่อ**: (Company/Store name - extract the main business name)
-                    - **ที่อยู่**: (Complete address including street, district, province, postal code)
-                    - **เลขประจำตัวผู้เสียภาษี**: (13-digit tax ID - format: XXXXXXXXXXXXX)
-                    - **โทรศัพท์**: (Phone number if available)
+                    IMPORTANT FOR ACCURACY:
+                    - Tax IDs are 13 digits - count carefully
+                    - Thai names may have unique spellings - don't "correct" them
+                    - Preserve exact spacing and formatting
+                    - Include ALL visible text even if it seems redundant
 
-                    # ลูกค้า/ผู้ซื้อ (Buyer)
-                    - **ชื่อ**: (Customer name)
-                    - **ที่อยู่**: (Complete address)
-                    - **เลขประจำตัวผู้เสียภาษี**: (13-digit tax ID if shown)
-
-                    # รายการสินค้า (Items)
-                    Create a table in this exact format:
-                    | รายการ | จำนวน | ราคาต่อหน่วย | จำนวนเงิน |
-                    |--------|--------|-------------|-----------|
-                    | [item description] | [qty] | [unit price] | [total] |
-
-                    # ยอดเงิน (Totals)
-                    - **ราคาสินค้า**: (Subtotal before tax)
-                    - **ภาษีมูลค่าเพิ่ม**: (VAT amount with % if shown)
-                    - **รวมทั้งสิ้น**: (Grand total)
-                    - **ส่วนลด**: (Discount if any)
-                    - **ค่าจัดส่ง**: (Shipping if any)
-
-                    IMPORTANT:
-                    - Extract numbers EXACTLY as shown (e.g., "4,399.00", "287.79")
-                    - Include currency symbols if present (e.g., "บาท", "THB", "฿")
-                    - Preserve all Thai characters accurately
-                    - If a field is not found in the image, write "ไม่ระบุ" (Not specified)
+                    Output the raw text exactly as you see it.
                     """;
 
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("model", modelName);
             requestBody.put("max_tokens", 4000);
-            requestBody.put("temperature", 0.1); // Low temp for high accuracy (Deterministic)
+            requestBody.put("temperature", 0.0); // Lowest temp for maximum accuracy and deterministic output
 
             Map<String, Object> textContent = Map.of("type", "text", "text", promptText);
             Map<String, Object> imageContent = Map.of("type", "image_url", "image_url", Map.of("url", imageUrl));
@@ -109,23 +98,21 @@ public class TyphoonService {
 
                             JsonNode choices = root.path("choices");
                             if (choices.isEmpty())
-                                return "{}";
+                                return "";
 
                             String contentString = choices.get(0).path("message").path("content").asText();
 
-                            // Handle Typhoon's nested JSON output (rare case but safe to handle)
-                            String markdownText;
+                            // Handle Typhoon's nested JSON output
                             if (contentString.trim().startsWith("{") && contentString.contains("natural_text")) {
                                 try {
-                                    markdownText = objectMapper.readTree(contentString).path("natural_text").asText();
+                                    return objectMapper.readTree(contentString).path("natural_text").asText();
                                 } catch (Exception e) {
-                                    markdownText = contentString;
+                                    return contentString;
                                 }
-                            } else {
-                                markdownText = contentString;
                             }
 
-                            return convertMarkdownToJsonStructure(markdownText);
+                            // Return raw extracted text
+                            return contentString;
 
                         } catch (Exception e) {
                             throw new RuntimeException("Error parsing response: " + e.getMessage(), e);
@@ -135,6 +122,15 @@ public class TyphoonService {
         } catch (IOException e) {
             return Mono.error(new RuntimeException("Error processing image file", e));
         }
+    }
+
+    /**
+     * Legacy method - ใช้ regex parsing แบบเดิม (เก็บไว้เผื่อต้องการใช้)
+     */
+    @Deprecated
+    public Mono<String> analyzeInvoiceImage(MultipartFile file) {
+        return extractRawTextFromImage(file)
+                .map(this::convertMarkdownToJsonStructure);
     }
 
     // --- Core Logic: Robust Markdown Parsing ---
