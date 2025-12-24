@@ -208,7 +208,7 @@ public class ChatContextDTO {
                        .append(", ประเภท: ").append(meeting.getMeetingType())
                        .append(", วันที่: ").append(meeting.getMeetingDate())
                        .append(", เวลา: ").append(meeting.getMeetingTime())
-                       .append(", สถานะ: ").append(meeting.getStatus());
+                       .append(", สถานะ ").append(meeting.getStatus());
                 if (meeting.getDescription() != null && !meeting.getDescription().isEmpty()) {
                     // ลบ HTML tags
                     String cleanDesc = meeting.getDescription()
@@ -225,11 +225,6 @@ public class ChatContextDTO {
             context.append("- การประชุม: ไม่มีในระบบ\n");
         }
 
-        if (pendingDocumentsCount > 0) {
-            context.append("- เอกสารรออนุมัติ: ").append(pendingDocumentsCount).append(" รายการ\n");
-        } else {
-            context.append("- เอกสารรออนุมัติ: ไม่มี\n");
-        }
 
         if (assetsList != null && !assetsList.isEmpty()) {
             context.append("- ทรัพย์สินทั้งหมดในระบบ (").append(assetsList.size()).append(" รายการ):\n");
@@ -238,7 +233,7 @@ public class ChatContextDTO {
                        .append(", ชื่อ: ").append(asset.getName())
                        .append(", ประเภท: ").append(asset.getAssetType())
                        .append(", จำนวน: ").append(asset.getQuantity())
-                       .append(", สถานะ: ").append(asset.getStatus())
+                       .append(", สถานะ ").append(asset.getStatus())
                        .append("\n");
             }
         } else {

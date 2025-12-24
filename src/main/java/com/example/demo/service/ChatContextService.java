@@ -41,15 +41,15 @@ public class ChatContextService {
     static {
         MEETING_TYPE_MAP.put("001", "การประชุมคณะอนุกรรมการ");
         MEETING_TYPE_MAP.put("002", "การประชุมคณะอนุกรรมการตรวจสอบทรัพย์สิน");
-        MEETING_TYPE_MAP.put("003", "การประชุมคณะอนุกรรมการตรวจสอบทรัพย์สินมูลค่าสูง");
+        MEETING_TYPE_MAP.put("003", "การประชุมคณะอนุกรรมการตรวจสอบทรัพย์สินมูลค่าเกินหนึ่งล้านบาท");
     }
 
     private static final Map<String, String> MEETING_STATUS_MAP = new HashMap<>();
 
     static {
-        MEETING_STATUS_MAP.put("DRAFT", "ร่าง");
-        MEETING_STATUS_MAP.put("ACTIVE", "รอเริ่มการประชุม");
-        MEETING_STATUS_MAP.put("PUBLISH", "เผยแพร่แล้ว");
+        MEETING_STATUS_MAP.put("DRAFT", "แบบร่าง");
+        MEETING_STATUS_MAP.put("ACTIVE", "รอลงมติการประชุม");
+        MEETING_STATUS_MAP.put("PUBLISH", "ลงมติการประชุมแล้ว");
     }
 
     /**
@@ -97,7 +97,6 @@ public class ChatContextService {
             case ASSET_QUERY -> buildAssetQueryContext(params);
             case ASSET_COUNT -> buildAssetCountContext(params);
             case COMMITTEE_QUERY -> buildCommitteeQueryContext();
-            case DOCUMENT_QUERY -> buildDocumentQueryContext();
             case COUNT_QUERY -> buildCountQueryContext();
             case SUMMARY_QUERY -> buildSummaryQueryContext();
             case GENERAL -> buildMinimalContext();
@@ -122,12 +121,10 @@ public class ChatContextService {
         // Query แค่จำนวน (COUNT) - ไม่ดึงรายละเอียด
         long todayMeetingCount = meetingRepository.findByMeetingDate(LocalDate.now()).size();
         long pendingAssetCount = assetRepository.countByStatus(Asset.AssetStatus.PENDING);
-        long pendingDocCount = meetingRepository.countByStatus("DRAFT");
 
-        sb.append("สรุปวันนี้:\n");
-        sb.append(String.format("- การประชุมวันนี้: %d รายการ\n", todayMeetingCount));
-        sb.append(String.format("- ทรัพย์สินรอตรวจสอบ: %d รายการ\n", pendingAssetCount));
-        sb.append(String.format("- เอกสารรออนุมัติ: %d รายการ\n", pendingDocCount));
+        sb.append("สรุปวันนี้\n");
+        sb.append(String.format("- การประชุมวันนี้ %d รายการ\n", todayMeetingCount));
+        sb.append(String.format("- ทรัพย์สินรอตรวจสอบ %d รายการ\n", pendingAssetCount));
 
         return sb.toString();
     }
@@ -142,6 +139,8 @@ public class ChatContextService {
         List<Meeting> meetings;
         String dateFilter = params.getOrDefault("dateFilter", "recent");
         String year = params.get("year");
+        String dayOfWeek = params.get("dayOfWeek");
+        String weekOffset = params.getOrDefault("weekOffset", "this");
 
         // ถ้ามีการระบุปี ให้กรองตามปี
         if (year != null) {
@@ -151,34 +150,71 @@ public class ChatContextService {
                 // ปีนี้
                 startDate = LocalDate.now().with(TemporalAdjusters.firstDayOfYear());
                 endDate = LocalDate.now().with(TemporalAdjusters.lastDayOfYear());
-                sb.append("การประชุมปีนี้:\n");
+                sb.append("การประชุมปีนี้\n");
             } else {
                 // ปีที่ระบุ (เช่น 2568)
                 int buddhistYear = Integer.parseInt(year);
                 int gregorianYear = buddhistYear - 543; // แปลง พ.ศ. เป็น ค.ศ.
                 startDate = LocalDate.of(gregorianYear, 1, 1);
                 endDate = LocalDate.of(gregorianYear, 12, 31);
-                sb.append(String.format("การประชุมภายในปี %s:\n", year));
+                sb.append(String.format("การประชุมภายในปี %s\n", year));
             }
 
             meetings = meetingRepository.findMeetingsBetweenDates(startDate, endDate);
+        } else if (dayOfWeek != null) {
+            // กรณีระบุวันเฉพาะเจาะจง เช่น "วันศุกร์นี้" หรือ "วันจันทร์หน้า"
+            java.time.DayOfWeek targetDayOfWeek = java.time.DayOfWeek.valueOf(dayOfWeek);
+            LocalDate targetDate;
+
+            if ("next".equals(weekOffset)) {
+                // หาวันที่ระบุของสัปดาห์หน้า
+                targetDate = LocalDate.now()
+                    .with(TemporalAdjusters.next(targetDayOfWeek));
+                sb.append(String.format("การประชุม%sหน้า (%s)\n",
+                    getThaiDayName(targetDayOfWeek),
+                    formatThaiDate(targetDate)));
+            } else {
+                // หาวันที่ระบุของสัปดาห์นี้
+                LocalDate today = LocalDate.now();
+                LocalDate nextOccurrence = today.with(TemporalAdjusters.nextOrSame(targetDayOfWeek));
+
+                // ถ้าวันนั้นผ่านไปแล้วในสัปดาห์นี้ ให้ใช้วันนั้นของสัปดาห์หน้า
+                LocalDate startOfWeek = today.with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
+                LocalDate endOfWeek = startOfWeek.plusDays(6);
+
+                if (nextOccurrence.isAfter(endOfWeek)) {
+                    // ถ้าวันที่พบอยู่นอกสัปดาห์นี้ แสดงว่าวันนั้นผ่านไปแล้ว
+                    targetDate = today.with(TemporalAdjusters.previous(targetDayOfWeek));
+                    if (targetDate.isBefore(startOfWeek)) {
+                        targetDate = nextOccurrence;
+                    }
+                } else {
+                    targetDate = nextOccurrence;
+                }
+
+                sb.append(String.format("การประชุม%sนี้ (%s)\n",
+                    getThaiDayName(targetDayOfWeek),
+                    formatThaiDate(targetDate)));
+            }
+
+            meetings = meetingRepository.findByMeetingDate(targetDate);
         } else if ("today".equals(dateFilter)) {
             meetings = meetingRepository.findByMeetingDate(LocalDate.now());
-            sb.append("การประชุมวันนี้:\n");
+            sb.append("การประชุมวันนี้\n");
         } else if ("thisWeek".equals(dateFilter)) {
             LocalDate startOfWeek = LocalDate.now().with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
             LocalDate endOfWeek = startOfWeek.plusDays(6);
             meetings = meetingRepository.findMeetingsBetweenDates(startOfWeek, endOfWeek);
-            sb.append("การประชุมสัปดาห์นี้:\n");
+            sb.append("การประชุมสัปดาห์นี้\n");
         } else if ("thisMonth".equals(dateFilter)) {
             LocalDate startOfMonth = LocalDate.now().with(TemporalAdjusters.firstDayOfMonth());
             LocalDate endOfMonth = LocalDate.now().with(TemporalAdjusters.lastDayOfMonth());
             meetings = meetingRepository.findMeetingsBetweenDates(startOfMonth, endOfMonth);
-            sb.append("การประชุมเดือนนี้:\n");
+            sb.append("การประชุมเดือนนี้\n");
         } else {
             // ดึง 10 รายการล่าสุด
             meetings = meetingRepository.findTop10RecentMeetings(PageRequest.of(0, 10));
-            sb.append("การประชุมล่าสุด (10 รายการ):\n");
+            sb.append("การประชุมล่าสุด 10 รายการ\n");
         }
 
         if (meetings.isEmpty()) {
@@ -214,7 +250,7 @@ public class ChatContextService {
         if (meetingNo != null) {
             Meeting meeting = meetingRepository.findByMeetingNo(meetingNo);
             if (meeting != null) {
-                sb.append("รายละเอียดการประชุม:\n");
+                sb.append("รายละเอียดการประชุม\n");
                 sb.append(formatMeetingDetailInfo(meeting));
             } else {
                 sb.append(String.format("ไม่พบการประชุมเลขที่ %s\n", meetingNo));
@@ -222,7 +258,7 @@ public class ChatContextService {
         } else {
             // ถ้าไม่มีเลขที่ ให้แสดงการประชุมล่าสุด
             List<Meeting> meetings = meetingRepository.findTop10RecentMeetings(PageRequest.of(0, 5));
-            sb.append("การประชุมล่าสุด (5 รายการ):\n");
+            sb.append("การประชุมล่าสุด 5 รายการ\n");
             if (meetings.isEmpty()) {
                 sb.append("- ไม่มีการประชุม\n");
             } else {
@@ -245,11 +281,11 @@ public class ChatContextService {
         List<Asset> assets;
         if (assetType != null) {
             assets = assetRepository.findByAssetType(assetType);
-            sb.append(String.format("ทรัพย์สินประเภท '%s':\n", assetType));
+            sb.append(String.format("ทรัพย์สินประเภท '%s'\n", assetType));
         } else {
             // ดึงทรัพย์สินที่รอตรวจสอบ
             assets = assetRepository.findByStatus(Asset.AssetStatus.PENDING);
-            sb.append("ทรัพย์สินรอตรวจสอบ:\n");
+            sb.append("ทรัพย์สินรอตรวจสอบ\n");
         }
 
         if (assets.isEmpty()) {
@@ -277,17 +313,17 @@ public class ChatContextService {
 
         if (assetType != null) {
             long count = assetRepository.countByAssetType(assetType);
-            sb.append(String.format("จำนวนทรัพย์สินประเภท '%s': %d รายการ\n", assetType, count));
+            sb.append(String.format("จำนวนทรัพย์สินประเภท '%s' %d รายการ\n", assetType, count));
         } else {
             long pendingCount = assetRepository.countByStatus(Asset.AssetStatus.PENDING);
             long confirmedCount = assetRepository.countByStatus(Asset.AssetStatus.CONFIRMED);
             long checkedInCount = assetRepository.countByStatus(Asset.AssetStatus.CHECKED_IN);
             long totalCount = assetRepository.count();
-            sb.append("สรุปจำนวนทรัพย์สิน:\n");
-            sb.append(String.format("- รอตรวจสอบ: %d รายการ\n", pendingCount));
-            sb.append(String.format("- พบแล้ว: %d รายการ\n", confirmedCount));
-            sb.append(String.format("- เช็คอินแล้ว: %d รายการ\n", checkedInCount));
-            sb.append(String.format("- ทั้งหมด: %d รายการ\n", totalCount));
+            sb.append("สรุปจำนวนทรัพย์สิน\n");
+            sb.append(String.format("- รอตรวจสอบ %d รายการ\n", pendingCount));
+            sb.append(String.format("- พบแล้ว %d รายการ\n", confirmedCount));
+            sb.append(String.format("- ยึดแลเว %d รายการ\n", checkedInCount));
+            sb.append(String.format("- ทั้งหมด %d รายการ\n", totalCount));
         }
 
         return sb.toString();
@@ -300,7 +336,7 @@ public class ChatContextService {
         StringBuilder sb = new StringBuilder();
         List<com.example.demo.entity.CommitteeMember> members = committeeMemberRepository.findAll();
 
-        sb.append("คณะกรรมการ:\n");
+        sb.append("คณะกรรมการ\n");
         if (members.isEmpty()) {
             sb.append("- ไม่มีข้อมูล\n");
         } else {
@@ -315,18 +351,6 @@ public class ChatContextService {
         return sb.toString();
     }
 
-    /**
-     * DOCUMENT_QUERY - Query เฉพาะเอกสาร
-     */
-    private String buildDocumentQueryContext() {
-        StringBuilder sb = new StringBuilder();
-        long draftCount = meetingRepository.countByStatus("DRAFT");
-
-        sb.append("สรุปเอกสาร:\n");
-        sb.append(String.format("- เอกสารรออนุมัติ (ร่าง): %d รายการ\n", draftCount));
-
-        return sb.toString();
-    }
 
     /**
      * COUNT_QUERY - Query แบบนับทั้งหมด
@@ -336,14 +360,12 @@ public class ChatContextService {
 
         long meetingCount = meetingRepository.countActiveMeetings();
         long assetPendingCount = assetRepository.countByStatus(Asset.AssetStatus.PENDING);
-        long documentDraftCount = meetingRepository.countByStatus("DRAFT");
         long committeeCount = committeeMemberRepository.count();
 
-        sb.append("สรุปจำนวนข้อมูลทั้งหมด:\n");
-        sb.append(String.format("- การประชุม: %d รายการ\n", meetingCount));
-        sb.append(String.format("- ทรัพย์สินรอตรวจสอบ: %d รายการ\n", assetPendingCount));
-        sb.append(String.format("- เอกสารรออนุมัติ: %d รายการ\n", documentDraftCount));
-        sb.append(String.format("- คณะกรรมการ: %d คน\n", committeeCount));
+        sb.append("สรุปจำนวนข้อมูลทั้งหมด\n");
+        sb.append(String.format("- การประชุม %d รายการ\n", meetingCount));
+        sb.append(String.format("- ทรัพย์สินรอตรวจสอบ %d รายการ\n", assetPendingCount));
+        sb.append(String.format("- คณะกรรมการ %d คน\n", committeeCount));
 
         return sb.toString();
     }
@@ -358,7 +380,7 @@ public class ChatContextService {
         sb.append(buildCountQueryContext());
 
         // เพิ่มข้อมูลสำคัญบางส่วน
-        sb.append("\nการประชุมวันนี้:\n");
+        sb.append("\nการประชุมวันนี้\n");
         List<Meeting> todayMeetings = meetingRepository.findByMeetingDate(LocalDate.now());
         if (todayMeetings.isEmpty()) {
             sb.append("- ไม่มีการประชุม\n");
@@ -387,32 +409,75 @@ public class ChatContextService {
                 ? meeting.getMeetingTime().format(DateTimeFormatter.ofPattern("HH:mm")) + " น."
                 : "ไม่ระบุเวลา";
         String meetingDate = meeting.getMeetingDate() != null
-                ? meeting.getMeetingDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                ? formatThaiDate(meeting.getMeetingDate())
                 : "ไม่ระบุวันที่";
         String status = MEETING_STATUS_MAP.getOrDefault(
                 meeting.getStatus(),
                 meeting.getStatus()
         );
 
-        return String.format("  - %s เลขที่ %s วันที่ %s เวลา %s (สถานะ: %s)",
+        return String.format("  - %s เลขที่ %s วันที่ %s เวลา %s สถานะ %s",
                 meetingType, meeting.getMeetingNo(), meetingDate, meetingTime, status);
+    }
+
+    /**
+     * แปลงวันที่เป็นรูปแบบภาษาไทย เช่น "15 ธันวาคม 2567"
+     */
+    private String formatThaiDate(LocalDate date) {
+        String[] thaiMonths = {
+            "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+            "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
+        };
+
+        int day = date.getDayOfMonth();
+        int month = date.getMonthValue() - 1;
+        int buddhistYear = date.getYear() + 543;
+
+        return String.format("%d %s %d", day, thaiMonths[month], buddhistYear);
+    }
+
+    /**
+     * แปลงชื่อวันในสัปดาห์เป็นภาษาไทย
+     */
+    private String getThaiDayName(java.time.DayOfWeek dayOfWeek) {
+        return switch (dayOfWeek) {
+            case MONDAY -> "วันจันทร์";
+            case TUESDAY -> "วันอังคาร";
+            case WEDNESDAY -> "วันพุธ";
+            case THURSDAY -> "วันพฤหัสบดี";
+            case FRIDAY -> "วันศุกร์";
+            case SATURDAY -> "วันเสาร์";
+            case SUNDAY -> "วันอาทิตย์";
+        };
     }
 
     private String formatMeetingDetailInfo(Meeting meeting) {
         StringBuilder sb = new StringBuilder();
         sb.append(formatMeetingInfo(meeting)).append("\n");
         if (meeting.getDescription() != null && !meeting.getDescription().isEmpty()) {
-            sb.append(String.format("  รายละเอียด: %s\n", meeting.getDescription()));
+            sb.append(String.format("  รายละเอียด %s\n", meeting.getDescription()));
         }
         return sb.toString();
     }
 
     private String formatAssetInfo(Asset asset) {
-        return String.format("  - %s (ประเภท: %s, จำนวน: %d, สถานะ: %s)",
+        return String.format("  - %s ประเภท %s จำนวน %d สถานะ %s",
                 asset.getName(),
                 asset.getAssetType(),
                 asset.getQuantity(),
-                asset.getStatus().name());
+                translateAssetStatus(asset.getStatus()));
+    }
+
+    /**
+     * แปลงสถานะทรัพย์สินเป็นภาษาไทย
+     */
+    private String translateAssetStatus(Asset.AssetStatus status) {
+        return switch (status) {
+            case PENDING -> "รอตรวจสอบ";
+            case CONFIRMED -> "พบแล้ว";
+            case CHECKED_IN -> "เช็คอินแล้ว";
+            default -> status.name();
+        };
     }
 
     // === ฟังก์ชันเก่า (เก็บไว้เผื่อใช้งาน Legacy) ===
@@ -457,7 +522,7 @@ public class ChatContextService {
                                     ? meeting.getMeetingTime().format(DateTimeFormatter.ofPattern("HH:mm")) + " น."
                                     : "ไม่ระบุเวลา";
                             String meetingDate = meeting.getMeetingDate() != null
-                                    ? meeting.getMeetingDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                                    ? formatThaiDate(meeting.getMeetingDate())
                                     : "ไม่ระบุวันที่";
                             String status = MEETING_STATUS_MAP.getOrDefault(
                                     meeting.getStatus(),

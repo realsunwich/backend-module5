@@ -53,6 +53,27 @@ public class TyphoonService {
                     4. Read addresses and names character-by-character to avoid mistakes
                     5. If text is unclear, include what you see rather than making assumptions
 
+                    CRITICAL VALIDATION FOR TAX IDs (13 DIGITS):
+                    - Seller Tax ID format: 0-X-XXXX-XXXXX-XX-X (total 13 digits)
+                    - If you see 12 digits (e.g., 010557000819), COUNT AGAIN - there MUST be 13 digits
+                    - Count each digit individually: 0-1-0-5-5-5-7-0-0-0-8-1-9 = 13 digits
+                    - Double-check by verifying the first digit (usually 0-9) and last check digit
+                    - Example CORRECT: 0105557000819 (13 digits)
+                    - Example WRONG: 010557000819 (12 digits - missing a digit!)
+
+                    ADDRESS READING RULES:
+                    - Thai addresses use format XXX/XXX (house number/section)
+                    - Read BOTH parts before and after slash carefully
+                    - Examples: 122/122, 12/122, 1/122 are ALL different
+                    - If you see "12" before "/", check if there are more digits (could be "122")
+                    - Common pattern: three digits before slash (e.g., 122/122)
+
+                    THAI NAME ACCURACY:
+                    - Read character-by-character including all tone marks
+                    - Examples of similar but different names: ผู้นำรถ vs ผู้รักรัก
+                    - Do NOT auto-correct unusual spellings
+                    - If unclear, list what you see character by character
+
                     Extract everything including:
                     - Document headers (ใบกำกับภาษี, ใบเสร็จรับเงิน, etc.)
                     - Document numbers and dates
@@ -63,8 +84,8 @@ public class TyphoonService {
                     - Any notes or remarks
 
                     IMPORTANT FOR ACCURACY:
-                    - Tax IDs are 13 digits - count carefully
-                    - Thai names may have unique spellings - don't "correct" them
+                    - Tax IDs are 13 digits - count carefully digit by digit
+                    - Thai names may have unique spellings - preserve them exactly
                     - Preserve exact spacing and formatting
                     - Include ALL visible text even if it seems redundant
 

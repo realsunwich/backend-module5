@@ -23,7 +23,6 @@ public class IntentDetectionService {
         ASSET_QUERY,        // ถามเกี่ยวกับทรัพย์สิน
         ASSET_COUNT,        // ถามจำนวนทรัพย์สิน
         COMMITTEE_QUERY,    // ถามเกี่ยวกับคณะกรรมการ
-        DOCUMENT_QUERY,     // ถามเกี่ยวกับเอกสาร
         COUNT_QUERY,        // ถามจำนวนแบบทั่วไป
         SUMMARY_QUERY,      // ถามสรุปข้อมูลทั่วไป
         GENERAL             // คำถามทั่วไป
@@ -72,12 +71,6 @@ public class IntentDetectionService {
         INTENT_KEYWORDS.put(IntentType.COMMITTEE_QUERY, Arrays.asList(
                 "คณะกรรมการ", "กรรมการ", "committee", "สมาชิก",
                 "ผู้เข้าร่วม", "อนุกรรมการ"
-        ));
-
-        // เอกสาร
-        INTENT_KEYWORDS.put(IntentType.DOCUMENT_QUERY, Arrays.asList(
-                "เอกสาร", "document", "รออนุมัติ", "รอการอนุมัติ",
-                "ร่าง", "draft"
         ));
 
         // จำนวน/นับ
@@ -138,11 +131,6 @@ public class IntentDetectionService {
         // 6. คณะกรรมการ
         if (containsKeywords(normalizedMessage, IntentType.COMMITTEE_QUERY)) {
             return IntentType.COMMITTEE_QUERY;
-        }
-
-        // 7. เอกสาร
-        if (containsKeywords(normalizedMessage, IntentType.DOCUMENT_QUERY)) {
-            return IntentType.DOCUMENT_QUERY;
         }
 
         // 8. จำนวน/นับ
@@ -253,6 +241,18 @@ public class IntentDetectionService {
             params.put("dateFilter", "thisMonth");
         }
 
+        // ดึงวันเฉพาะเจาะจงในสัปดาห์ (เช่น วันจันทร์นี้, วันอังคารหน้า)
+        String dayOfWeek = extractDayOfWeek(normalizedMessage);
+        if (dayOfWeek != null) {
+            params.put("dayOfWeek", dayOfWeek);
+            // เช็คว่าเป็น "นี้" หรือ "หน้า"
+            if (normalizedMessage.contains("หน้า") || normalizedMessage.contains("ถัดไป")) {
+                params.put("weekOffset", "next");
+            } else {
+                params.put("weekOffset", "this");
+            }
+        }
+
         // ดึงประเภททรัพย์สิน
         if (normalizedMessage.contains("อาคาร")) {
             params.put("assetType", "อาคาร");
@@ -263,6 +263,29 @@ public class IntentDetectionService {
         }
 
         return params;
+    }
+
+    /**
+     * ดึงวันในสัปดาห์จากข้อความ (เช่น วันจันทร์, วันอังคาร)
+     * @return "MONDAY", "TUESDAY", ... หรือ null ถ้าไม่พบ
+     */
+    private String extractDayOfWeek(String normalizedMessage) {
+        if (normalizedMessage.contains("จันทร์") || normalizedMessage.contains("จันทร")) {
+            return "MONDAY";
+        } else if (normalizedMessage.contains("อังคาร")) {
+            return "TUESDAY";
+        } else if (normalizedMessage.contains("พุธ")) {
+            return "WEDNESDAY";
+        } else if (normalizedMessage.contains("พฤหัสบดี") || normalizedMessage.contains("พฤหัส")) {
+            return "THURSDAY";
+        } else if (normalizedMessage.contains("ศุกร์")) {
+            return "FRIDAY";
+        } else if (normalizedMessage.contains("เสาร์")) {
+            return "SATURDAY";
+        } else if (normalizedMessage.contains("อาทิตย์")) {
+            return "SUNDAY";
+        }
+        return null;
     }
 
     /**
@@ -277,7 +300,6 @@ public class IntentDetectionService {
             case ASSET_QUERY -> "ถามเกี่ยวกับทรัพย์สิน - Query เฉพาะ Asset";
             case ASSET_COUNT -> "ถามจำนวนทรัพย์สิน - Query Count อย่างเดียว";
             case COMMITTEE_QUERY -> "ถามเกี่ยวกับคณะกรรมการ - Query เฉพาะ Committee";
-            case DOCUMENT_QUERY -> "ถามเกี่ยวกับเอกสาร - Query เฉพาะ Document Status";
             case COUNT_QUERY -> "ถามจำนวนทั่วไป - Query Count ทั้งหมด";
             case SUMMARY_QUERY -> "ถามสรุปข้อมูล - Query Summary (Count + ข้อมูลสำคัญ)";
             case GENERAL -> "คำถามทั่วไป - Query ข้อมูลพื้นฐาน";
